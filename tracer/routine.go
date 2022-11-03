@@ -33,11 +33,11 @@ Drop in replacements to create and start a new go routine
 */
 
 // Function to create a new go routine and run a function fn in this routine
-func Spawn(fn func()) {
+func Spawn(fn func(args ...any), val ...any) {
 	numRut := createRoutinePre()
 	go func() {
 		createRoutinePost(numRut)
-		fn()
+		fn(val...)
 	}()
 }
 

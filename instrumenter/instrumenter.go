@@ -117,10 +117,8 @@ func instrument_go_file(file_path string) error {
 }
 
 // instrument a given ast file f
-// TODO: init
 // TODO: spawn (als extra function), arguments
-// TODO: select
-// TODO: receive in select must be <- a.getChan()
+// TODO: select, receive in select must be <- a.getChan()
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
@@ -148,6 +146,8 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 			instrument_expression_statement(n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(astSet, n, c)
+		case *ast.SelectStmt: // handel select statements
+			instrument_select_statements(astSet, n, c)
 		}
 
 		return true
@@ -185,7 +185,6 @@ func add_init_call(astSet *token.FileSet, n ast.Node) {
 		},
 	}, body...)
 	n.(*ast.FuncDecl).Body.List = body
-	ast.Print(astSet, body)
 }
 
 // instrument if n is a call expression
@@ -353,4 +352,77 @@ func instrument_go_statements(astSet *token.FileSet, n ast.Node, c *astutil.Curs
 		// ast.Print(astSet, n)
 	}
 
+}
+
+// instrument select statements
+func instrument_select_statements(astSet *token.FileSet, n ast.Node, cur *astutil.Cursor) {
+	// collect cases and replace <-i with i.GetChan()
+	caseNodes := n.(*ast.SelectStmt).Body.List
+	cases := make([]string, 0)
+	d := false // check weather select contains default
+	// ast.Print(astSet, n)
+	for _, c := range caseNodes {
+		// only look at communication cases
+		switch c.(type) {
+		case *ast.CommClause:
+		default:
+			continue
+		}
+
+		// check for default, add tracer.PostDefault if found
+		if c.(*ast.CommClause).Comm == nil {
+			d = true
+			c.(*ast.CommClause).Body = append(c.(*ast.CommClause).Body, &ast.ExprStmt{
+				X: &ast.CallExpr{
+					Fun: &ast.Ident{
+						Name: "tracer.PostDefault",
+					},
+				},
+			})
+			continue
+		}
+
+		f := c.(*ast.CommClause).Comm.(*ast.ExprStmt).X.(*ast.CallExpr).Fun.(*ast.SelectorExpr)
+		// check for receive
+		if f.Sel.Name != "Receive" {
+			continue
+		}
+		name := f.X.(*ast.Ident).Name
+		cases = append(cases, name)
+
+		f.X.(*ast.Ident).Name = "<-" + name
+		f.Sel.Name = "GetChan"
+	}
+
+	cases_string := "false, "
+	if d {
+		cases_string = "true, "
+	}
+	for i, c := range cases {
+		cases_string += (c + ".GetId()")
+		if i != len(cases)-1 {
+			cases_string += ", "
+		}
+	}
+
+	// add tracer.PreSelect
+	cur.Replace(
+		&ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun: &ast.Ident{
+							Name: "tracer.PreSelect",
+						},
+						Args: []ast.Expr{
+							&ast.Ident{
+								Name: cases_string,
+							},
+						},
+					},
+				},
+				n.(*ast.SelectStmt),
+			},
+		},
+	)
 }

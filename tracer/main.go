@@ -72,6 +72,19 @@ func main() {
 }
 */
 
+/*
+	func run(a int, b string) {
+		fmt.Println(a, b)
+	}
+*/
+
+/*
+func run(args ...any) {
+	a := args[0].(int)
+	b := args[1].(string)
+	fmt.Println(a, b)
+}
+
 func main() {
 	Init()
 
@@ -83,10 +96,11 @@ func main() {
 	c := NewChan[int](0)
 	d := NewChan[int](0)
 
-	Spawn(func() { x.Send(1) })
-	Spawn(func() { x.Receive(); x.Send(1) })
-	Spawn(func() { y.Send(1); x.Receive() })
-	Spawn(func() { y.Receive() })
+	Spawn(run, 1, "a")
+	Spawn(func(args ...any) { x.Send(1); fmt.Println(args[0].(string)) }, "q")
+	Spawn(func(args ...any) { x.Receive(); x.Send(1) })
+	Spawn(func(args ...any) { y.Send(1); x.Receive() })
+	Spawn(func(args ...any) { y.Receive() })
 
 	time.Sleep(2 * time.Second)
 
@@ -106,5 +120,46 @@ func main() {
 	}
 
 	time.Sleep(1 * time.Second)
+	PrintTrace()
+}
+*/
+
+func main() {
+	Init()
+
+	x := NewChan[int](0)
+	y := NewChan[int](0)
+
+	a := NewChan[int](0)
+	b := NewChan[int](0)
+	c := NewChan[int](0)
+	d := NewChan[int](0)
+	e := NewChan[string](0)
+	Spawn(func(args ...any) { x.Send(1); fmt.Println(args[0].(string)) }, "q")
+	Spawn(func(args ...any) { x.Receive(); x.Send(1) })
+	Spawn(func(args ...any) { y.Send(1); x.Receive() })
+	Spawn(func(args ...any) { y.Receive() })
+	{
+		PreSelect(true, a.GetId(), b.GetId(), c.GetId(), d.GetId())
+
+		select {
+		case <-a.GetChan():
+			println("a")
+		case <-b.GetChan():
+			println("b")
+		case <-c.GetChan():
+			println("c")
+		case <-d.GetChan():
+			println("d")
+		default:
+			println("default")
+			PostDefault()
+		}
+	}
+
+	e.Close()
+
+	time.Sleep(2 * time.Second)
+
 	PrintTrace()
 }
