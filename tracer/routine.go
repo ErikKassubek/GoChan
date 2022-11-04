@@ -1,4 +1,4 @@
-package main
+package tracer
 
 import (
 	"github.com/petermattis/goid"

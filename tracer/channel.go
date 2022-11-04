@@ -1,4 +1,4 @@
-package main
+package tracer
 
 /*
 Copyright (c) 2022, Erik Kassubek
