@@ -31,7 +31,7 @@ func main() {
 	go func(c int, d string) { x <- i; a <- 1; fmt.Println(c, d) }(3, "a")
 	go func() { <-x; x <- 1; b <- get_i(1) }()
 	go func() { y <- "4"; <-x; c <- 5 }()
-	go func() { i := <-y; d <- 6; ; fmt.Println(i) }()
+	go func() { i := <-y; d <- 6; fmt.Println(i) }()
 
 	select {
 	case <-a:
@@ -71,7 +71,7 @@ func main() {
 	}, 3, "a")
 	tracer.Spawn(func(args_LDnJObCsNV ...any) { x.Receive(); x.Send(1); b.Send(get_i(1)) })
 	tracer.Spawn(func(args_lgTeMaPEZQ ...any) { y.Send("4"); x.Receive(); c.Send(5) })
-	tracer.Spawn(func(args_leQYhYzRyW ...any) { i := y.Receive(); d.Send(6); ; fmt.Println(i) })
+	tracer.Spawn(func(args_leQYhYzRyW ...any) { i := y.Receive(); d.Send(6); fmt.Println(i) })
 
 	{
 		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId(), d.GetId())
