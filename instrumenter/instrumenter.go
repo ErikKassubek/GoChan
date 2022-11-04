@@ -29,7 +29,6 @@ Type declarations for the trace elements
 */
 
 /*
-	TODO: send with function call as argument
 	TODO: conversion by list type
 */
 
@@ -156,7 +155,7 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 				instrument_call_expressions(n)
 			}
 		case *ast.SendStmt: // handle send messages
-			instrument_send_statement(n, c)
+			instrument_send_statement(astSet, n, c)
 		case *ast.ExprStmt: // handle receive and close
 			instrument_expression_statement(n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
@@ -365,39 +364,61 @@ func instrument_call_expressions(n *ast.AssignStmt) {
 }
 
 // instrument a send statement
-func instrument_send_statement(n *ast.SendStmt, c *astutil.Cursor) {
+func instrument_send_statement(astStd *token.FileSet, n *ast.SendStmt, c *astutil.Cursor) {
 	// get the channel name
 	channel := n.Chan.(*ast.Ident).Name
 	value := ""
 
 	// get what is send through the channel
 	v := n.Value
+	call_expr := false
 	switch lit := v.(type) {
 	case (*ast.BasicLit):
 		value = lit.Value
 	case (*ast.Ident):
 		value = lit.Name
+	case (*ast.CallExpr):
+		call_expr = true
 	}
 
 	// replace with function call
-	c.Replace(&ast.ExprStmt{
-		X: &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X: &ast.Ident{
-					Name: channel,
+	if call_expr {
+		c.Replace(&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: channel,
+					},
+					Sel: &ast.Ident{
+						Name: "Send",
+					},
 				},
-				Sel: &ast.Ident{
-					Name: "Send",
+				Lparen: token.NoPos,
+				Args: []ast.Expr{
+					v.(*ast.CallExpr),
 				},
 			},
-			Lparen: token.NoPos,
-			Args: []ast.Expr{
-				0: &ast.Ident{
-					Name: value,
+		})
+	} else {
+		c.Replace(&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: channel,
+					},
+					Sel: &ast.Ident{
+						Name: "Send",
+					},
+				},
+				Lparen: token.NoPos,
+				Args: []ast.Expr{
+					&ast.Ident{
+						Name: value,
+					},
 				},
 			},
-		},
-	})
+		})
+	}
 }
 
 // instrument receive and call statements
@@ -493,7 +514,6 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
 		}
 
-		// ast.Print(astSet, n)
 		arg_name := "args_" + randSeq(10)
 		function_call.Type.Params = &ast.FieldList{
 			List: []*ast.Field{
@@ -578,8 +598,6 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			}
 		}
 		function_call.Body.List = append(decl, function_call.Body.List...)
-
-		// ast.Print(astSet, body)
 
 		c.Replace(&ast.ExprStmt{
 			X: &ast.CallExpr{
