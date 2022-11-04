@@ -38,17 +38,21 @@ var path_separator string = "/"
 var file_names []string = make([]string, 0)
 var in string
 var out string
+var show_trace bool
 
 // read command line arguments
 func command_line_args() error {
 	flag.StringVar(&in, "in", "", "input path")
 	flag.StringVar(&out, "out", "."+path_separator+"output"+path_separator, "output path")
+	show_trace_ := flag.Bool("show_trace", false, "show the trace")
 
 	flag.Parse()
 
+	show_trace = *show_trace_
+
 	if in == "" {
 		return errors.New("flag -in missing or incorrect.\n" +
-			"usage: go run main.go -in=[pathToFiles])")
+			"usage: go run main.go -in=[pathToFiles] <-out=[path_to_folder]> <-print_trace>)")
 	}
 
 	// add trailing path separator to in
@@ -62,7 +66,7 @@ func command_line_args() error {
 	}
 
 	if in == out {
-		return errors.New("In cannot be equal to out.")
+		return errors.New("in cannot be equal to out")
 	}
 
 	return nil

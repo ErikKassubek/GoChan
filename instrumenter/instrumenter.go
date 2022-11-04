@@ -28,6 +28,11 @@ traceElements.go
 Type declarations for the trace elements
 */
 
+/*
+	TODO: send with function call as argument
+	TODO: conversion by list type
+*/
+
 import (
 	"fmt"
 	"go/ast"
@@ -35,10 +40,19 @@ import (
 	"go/printer"
 	"go/token"
 	"io/ioutil"
+	"math/rand"
 	"os"
+	"strconv"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
+
+// collect params and there type
+type arg_elem struct {
+	name     string // variable name
+	var_type string // variable type
+	ellipsis bool   // ...type
+}
 
 // traverse all files for instrumentation
 func instrument_files() error {
@@ -117,26 +131,27 @@ func instrument_go_file(file_path string) error {
 }
 
 // instrument a given ast file f
-// TODO: spawn (als extra function), arguments
-// TODO: select, receive in select must be <- a.getChan()
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
-		// ast.Print(astSet, n)
-
-		switch n.(type) {
+		switch n := n.(type) {
 
 		case *ast.GenDecl: // add import of tracer lib if other libs get imported
-			if n.(*ast.GenDecl).Tok == token.IMPORT {
+			if n.Tok == token.IMPORT {
 				add_tracer_import(n)
 			}
 		case *ast.FuncDecl:
-			if n.(*ast.FuncDecl).Name.Obj.Name == "main" {
-				add_init_call(astSet, n)
+			if n.Name.Obj.Name == "main" {
+				add_init_call(n)
+				if show_trace {
+					add_show_trace_call(n)
+				}
+			} else {
+				instrument_function_declarations(astSet, n, c)
 			}
 		case *ast.AssignStmt: // handle assign statements
-			switch n.(*ast.AssignStmt).Rhs[0].(type) {
+			switch n.Rhs[0].(type) {
 			case *ast.CallExpr: // call expression
 				instrument_call_expressions(n)
 			}
@@ -147,7 +162,7 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements
-			instrument_select_statements(astSet, n, c)
+			instrument_select_statements(n, c)
 		}
 
 		return true
@@ -157,8 +172,8 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 }
 
 // add tracer lib import if other libs are imported
-func add_tracer_import(n ast.Node) {
-	specs := n.(*ast.GenDecl).Specs
+func add_tracer_import(n *ast.GenDecl) {
+	specs := n.Specs
 	// add tracer lib to specs
 	specs = append(specs, &ast.ImportSpec{
 		Path: &ast.BasicLit{
@@ -166,11 +181,11 @@ func add_tracer_import(n ast.Node) {
 			Value: "\"github.com/ErikKassubek/GoChan/tracer\"",
 		},
 	})
-	n.(*ast.GenDecl).Specs = specs
+	n.Specs = specs
 }
 
-func add_init_call(astSet *token.FileSet, n ast.Node) {
-	body := n.(*ast.FuncDecl).Body.List
+func add_init_call(n *ast.FuncDecl) {
+	body := n.Body.List
 	if body == nil {
 		return
 	}
@@ -184,13 +199,137 @@ func add_init_call(astSet *token.FileSet, n ast.Node) {
 			},
 		},
 	}, body...)
-	n.(*ast.FuncDecl).Body.List = body
+	n.Body.List = body
+}
+
+// add function to show the trace
+func add_show_trace_call(n *ast.FuncDecl) {
+	n.Body.List = append(n.Body.List, &ast.ExprStmt{
+		X: &ast.CallExpr{
+			Fun: &ast.Ident{
+				Name: "tracer.PrintTrace",
+			},
+		},
+	})
+}
+
+func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c *astutil.Cursor) {
+	param_objects := n.Type.Params.List
+
+	// ignore functions without params
+	if param_objects == nil {
+		param_objects = []*ast.Field{}
+	}
+
+	params := make([]arg_elem, 0)
+
+	for _, param := range param_objects {
+		name := param.Names[0].Name
+		var var_type string
+		var ellipsis bool
+
+		switch elem := param.Type.(type) {
+		case *ast.Ident:
+			var_type = elem.Name
+			ellipsis = false
+		case *ast.Ellipsis:
+			var_type = elem.Elt.(*ast.Ident).Name
+			ellipsis = true
+		default:
+			panic("Unknown type in instrument_function_declarations")
+		}
+
+		params = append(params, arg_elem{name, var_type, ellipsis})
+	}
+
+	// replace function arguments with args ...any_randomString
+	arg_name := "args_" + randSeq(10)
+	arg_statement := []*ast.Field{
+		{
+			Names: []*ast.Ident{
+				{Name: arg_name},
+			},
+			Type: &ast.Ellipsis{
+				Elt: &ast.Ident{
+					Name: "any",
+				},
+			},
+		},
+	}
+
+	n.Type.Params.List = arg_statement
+
+	// add variable declarations
+	var decl []ast.Stmt
+	for i, param := range params {
+		if param.ellipsis {
+			decl = append(decl, &ast.DeclStmt{
+				Decl: &ast.GenDecl{
+					Tok: token.VAR,
+					Specs: []ast.Spec{
+						&ast.ValueSpec{
+							Names: []*ast.Ident{
+								{
+									Name: param.name,
+								},
+							},
+							Type: &ast.ArrayType{
+								Elt: &ast.Ident{
+									Name: param.var_type,
+								},
+							},
+							Values: []ast.Expr{
+								&ast.Ident{
+									Name: arg_name + "[" + strconv.Itoa(i) + ":]",
+								},
+							},
+						},
+					},
+				},
+			})
+		} else {
+			decl = append(decl, &ast.DeclStmt{
+				Decl: &ast.GenDecl{
+					Tok: token.VAR,
+					Specs: []ast.Spec{
+						&ast.ValueSpec{
+							Names: []*ast.Ident{
+								{
+									Name: param.name,
+								},
+							},
+							Type: &ast.Ident{
+								Name: param.var_type,
+							},
+							Values: []ast.Expr{
+								&ast.TypeAssertExpr{
+									X: &ast.IndexExpr{
+										X: &ast.Ident{
+											Name: arg_name,
+										},
+										Index: &ast.BasicLit{
+											Kind:  token.INT,
+											Value: strconv.Itoa(i),
+										},
+									},
+									Type: &ast.Ident{
+										Name: param.var_type,
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+		}
+	}
+	n.Body.List = append(decl, n.Body.List...)
 }
 
 // instrument if n is a call expression
-func instrument_call_expressions(n ast.Node) {
+func instrument_call_expressions(n *ast.AssignStmt) {
 	// check make functions
-	callExp := n.(*ast.AssignStmt).Rhs[0].(*ast.CallExpr)
+	callExp := n.Rhs[0].(*ast.CallExpr)
 
 	// don't change call expression of non-make function
 	switch callExp.Fun.(type) {
@@ -226,18 +365,18 @@ func instrument_call_expressions(n ast.Node) {
 }
 
 // instrument a send statement
-func instrument_send_statement(n ast.Node, c *astutil.Cursor) {
+func instrument_send_statement(n *ast.SendStmt, c *astutil.Cursor) {
 	// get the channel name
-	channel := n.(*ast.SendStmt).Chan.(*ast.Ident).Name
+	channel := n.Chan.(*ast.Ident).Name
 	value := ""
 
 	// get what is send through the channel
-	v := n.(*ast.SendStmt).Value
-	switch v.(type) {
+	v := n.Value
+	switch lit := v.(type) {
 	case (*ast.BasicLit):
-		value = v.(*ast.BasicLit).Value
+		value = lit.Value
 	case (*ast.Ident):
-		value = v.(*ast.Ident).Name
+		value = lit.Name
 	}
 
 	// replace with function call
@@ -262,8 +401,8 @@ func instrument_send_statement(n ast.Node, c *astutil.Cursor) {
 }
 
 // instrument receive and call statements
-func instrument_expression_statement(n ast.Node, c *astutil.Cursor) {
-	x_part := n.(*ast.ExprStmt).X
+func instrument_expression_statement(n *ast.ExprStmt, c *astutil.Cursor) {
+	x_part := n.X
 	switch x_part.(type) {
 	case *ast.UnaryExpr:
 		instrument_receive_statement(n, c)
@@ -273,8 +412,8 @@ func instrument_expression_statement(n ast.Node, c *astutil.Cursor) {
 }
 
 // instrument receive statements
-func instrument_receive_statement(n ast.Node, c *astutil.Cursor) {
-	x_part := n.(*ast.ExprStmt).X.(*ast.UnaryExpr)
+func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
+	x_part := n.X.(*ast.UnaryExpr)
 
 	// check if correct operation
 	if x_part.Op != token.ARROW {
@@ -299,8 +438,8 @@ func instrument_receive_statement(n ast.Node, c *astutil.Cursor) {
 }
 
 // change close statements to tracer.Close
-func instrument_close_statement(n ast.Node, c *astutil.Cursor) {
-	x_part := n.(*ast.ExprStmt).X.(*ast.CallExpr)
+func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
+	x_part := n.X.(*ast.CallExpr)
 
 	// return if not ident
 	wrong := true
@@ -333,11 +472,115 @@ func instrument_close_statement(n ast.Node, c *astutil.Cursor) {
 }
 
 // instrument the creation of new go routines
-// TODO: not finished
-func instrument_go_statements(astSet *token.FileSet, n ast.Node, c *astutil.Cursor) {
-	fc := n.(*ast.GoStmt).Call.Fun
+// TODO: go statements with lambda functions with arguments
+func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.Cursor) {
+	fc := n.Call.Fun
 	switch function_call := fc.(type) {
 	case *ast.FuncLit: // go with lambda
+		// collect arguments
+		arguments := []arg_elem{}
+		for _, arg := range function_call.Type.Params.List {
+			ellipsis := false
+			type_val := ""
+			switch t := arg.Type.(type) {
+			case *ast.Ident:
+				type_val = t.Name
+			case *ast.Ellipsis:
+				type_val = t.Elt.(*ast.Ident).Name
+				ellipsis = true
+			}
+
+			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
+		}
+
+		// ast.Print(astSet, n)
+		arg_name := "args_" + randSeq(10)
+		function_call.Type.Params = &ast.FieldList{
+			List: []*ast.Field{
+				{
+					Names: []*ast.Ident{
+						{
+							Name: arg_name,
+						},
+					},
+					Type: &ast.Ellipsis{
+						Elt: &ast.Ident{
+							Name: "any",
+						},
+					},
+				},
+			},
+		}
+
+		// add argument assignment
+		// add variable declarations
+		var decl []ast.Stmt
+		for i, param := range arguments {
+			if param.ellipsis {
+				decl = append(decl, &ast.DeclStmt{
+					Decl: &ast.GenDecl{
+						Tok: token.VAR,
+						Specs: []ast.Spec{
+							&ast.ValueSpec{
+								Names: []*ast.Ident{
+									{
+										Name: param.name,
+									},
+								},
+								Type: &ast.ArrayType{
+									Elt: &ast.Ident{
+										Name: param.var_type,
+									},
+								},
+								Values: []ast.Expr{
+									&ast.Ident{
+										Name: arg_name + "[" + strconv.Itoa(i) + ":]",
+									},
+								},
+							},
+						},
+					},
+				})
+			} else {
+				decl = append(decl, &ast.DeclStmt{
+					Decl: &ast.GenDecl{
+						Tok: token.VAR,
+						Specs: []ast.Spec{
+							&ast.ValueSpec{
+								Names: []*ast.Ident{
+									{
+										Name: param.name,
+									},
+								},
+								Type: &ast.Ident{
+									Name: param.var_type,
+								},
+								Values: []ast.Expr{
+									&ast.TypeAssertExpr{
+										X: &ast.IndexExpr{
+											X: &ast.Ident{
+												Name: arg_name,
+											},
+											Index: &ast.BasicLit{
+												Kind:  token.INT,
+												Value: strconv.Itoa(i),
+											},
+										},
+										Type: &ast.Ident{
+											Name: param.var_type,
+										},
+									},
+								},
+							},
+						},
+					},
+				})
+			}
+		}
+		function_call.Body.List = append(decl, function_call.Body.List...)
+
+		// ast.Print(astSet, body)
+
 		c.Replace(&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
@@ -349,18 +592,37 @@ func instrument_go_statements(astSet *token.FileSet, n ast.Node, c *astutil.Curs
 			},
 		})
 	case *ast.Ident:
-		// ast.Print(astSet, n)
+		name := function_call.Name
+
+		func_args := []ast.Expr{&ast.Ident{
+			Name: name,
+		}}
+
+		func_args = append(func_args, n.Call.Args...)
+
+		c.Replace(&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: "tracer",
+					},
+					Sel: &ast.Ident{
+						Name: "Spawn",
+					},
+				},
+				Args: func_args,
+			},
+		})
 	}
 
 }
 
 // instrument select statements
-func instrument_select_statements(astSet *token.FileSet, n ast.Node, cur *astutil.Cursor) {
+func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 	// collect cases and replace <-i with i.GetChan()
-	caseNodes := n.(*ast.SelectStmt).Body.List
+	caseNodes := n.Body.List
 	cases := make([]string, 0)
 	d := false // check weather select contains default
-	// ast.Print(astSet, n)
 	for _, c := range caseNodes {
 		// only look at communication cases
 		switch c.(type) {
@@ -421,8 +683,18 @@ func instrument_select_statements(astSet *token.FileSet, n ast.Node, cur *astuti
 						},
 					},
 				},
-				n.(*ast.SelectStmt),
+				n,
 			},
 		},
 	)
+}
+
+// get a random sequence of letters
+func randSeq(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
