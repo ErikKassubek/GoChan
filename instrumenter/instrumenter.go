@@ -29,7 +29,7 @@ Type declarations for the trace elements
 */
 
 /*
-	TODO: handle chan type (extra todo)
+	TODO: assignment of chan
 */
 
 import (
@@ -131,7 +131,7 @@ func instrument_go_file(file_path string) error {
 
 // instrument a given ast file f
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
-	// ast.Print(astSet, f)
+	ast.Print(astSet, f)
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -227,7 +227,6 @@ func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c 
 		name := param.Names[0].Name
 		var var_type string
 		var ellipsis bool
-		// TODO: handle chan type
 		switch elem := param.Type.(type) {
 		case *ast.Ident:
 			var_type = elem.Name
@@ -235,6 +234,8 @@ func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c 
 		case *ast.Ellipsis:
 			var_type = elem.Elt.(*ast.Ident).Name
 			ellipsis = true
+		case *ast.ChanType:
+			var_type = "tracer.Chan[" + elem.Value.(*ast.Ident).Name + "]"
 		default:
 			panic("Unknown type in instrument_function_declarations")
 		}
