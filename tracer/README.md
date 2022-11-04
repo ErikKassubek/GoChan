@@ -58,6 +58,58 @@ func main() {
 	time.Sleep(2 * time.Second)
 }
 ```
+By the [instrumenter]() it gets translated into
+```
+func main() {
+	tracer.Init()
+	ex := []any{1, 2, 3}
+	var args []int
+	for _, a := range ex[1:] {
+		args = append(args, a.(int))
+	}
+	fmt.Println(args)
+
+	i := 0
+
+	x := tracer.NewChan[int](0)
+	y := tracer.NewChan[string](0)
+
+	a := tracer.NewChan[int](0)
+	b := tracer.NewChan[int](0)
+	c := tracer.NewChan[int](0)
+	d := tracer.NewChan[int](0)
+	tracer.Spawn(func(args_XoEFfRsWxP ...any) {
+		var c int = args_XoEFfRsWxP[0].(int)
+		var d string = args_XoEFfRsWxP[1].(string)
+		x.Send(i)
+		a.Send(1)
+		fmt.Println(c, d)
+	}, 3, "a")
+	tracer.Spawn(func(args_LDnJObCsNV ...any) { x.Receive(); x.Send(1); b.Send(get_i(1)) })
+	tracer.Spawn(func(args_lgTeMaPEZQ ...any) { y.Send("4"); x.Receive(); c.Send(5) })
+	tracer.Spawn(func(args_leQYhYzRyW ...any) { i := y.Receive(); d.Send(6); ; println(i) })
+	{
+		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId(), d.GetId())
+
+		select {
+		case <-a.GetChan():
+			println("a")
+		case <-b.GetChan():
+			println("b")
+		case <-c.GetChan():
+			println("c")
+		case <-d.GetChan():
+			println("d")
+		default:
+			println("default")
+			tracer.PostDefault()
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+	tracer.PrintTrace()
+}
+``` 
 The resulting trace is given by 
 ```
 [signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5?, 6?, default), post(default)]
