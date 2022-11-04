@@ -29,7 +29,8 @@ Type declarations for the trace elements
 */
 
 /*
-	TODO: conversion by list type
+	TODO: arguments in go lambda
+	TODO: handle chan type (extra todo)
 */
 
 import (
@@ -131,6 +132,7 @@ func instrument_go_file(file_path string) error {
 
 // instrument a given ast file f
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
+	ast.Print(astSet, f)
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -226,7 +228,7 @@ func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c 
 		name := param.Names[0].Name
 		var var_type string
 		var ellipsis bool
-
+		// TODO: handle chan type
 		switch elem := param.Type.(type) {
 		case *ast.Ident:
 			var_type = elem.Name
@@ -261,31 +263,120 @@ func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c 
 	// add variable declarations
 	var decl []ast.Stmt
 	for i, param := range params {
-		if param.ellipsis {
-			decl = append(decl, &ast.DeclStmt{
-				Decl: &ast.GenDecl{
-					Tok: token.VAR,
-					Specs: []ast.Spec{
-						&ast.ValueSpec{
-							Names: []*ast.Ident{
-								{
-									Name: param.name,
+		if param.ellipsis { // list
+			argument_creation := []ast.Stmt{
+				&ast.DeclStmt{
+					Decl: &ast.GenDecl{
+						Tok: token.VAR,
+						Specs: []ast.Spec{
+							&ast.ValueSpec{
+								Names: []*ast.Ident{
+									{
+										Name: param.name,
+										Obj: &ast.Object{
+											Kind: ast.Var,
+											Name: param.name,
+										},
+									},
 								},
-							},
-							Type: &ast.ArrayType{
-								Elt: &ast.Ident{
-									Name: param.var_type,
-								},
-							},
-							Values: []ast.Expr{
-								&ast.Ident{
-									Name: arg_name + "[" + strconv.Itoa(i) + ":]",
+								Type: &ast.ArrayType{
+									Elt: &ast.Ident{
+										Name: param.var_type,
+									},
 								},
 							},
 						},
 					},
 				},
-			})
+				&ast.RangeStmt{
+					Key: &ast.Ident{
+						Name: "_, arg_loop_var",
+						Obj: &ast.Object{
+							Kind: ast.Var,
+							Name: "_",
+							Decl: &ast.AssignStmt{
+								Lhs: []ast.Expr{
+									&ast.Ident{
+										Name: "_",
+										Obj: &ast.Object{
+											Kind: ast.Var,
+											Name: "_",
+										},
+									},
+									&ast.Ident{
+										Name: "arg_loop_var",
+										Obj: &ast.Object{
+											Kind: ast.Var,
+											Name: "arg_loop_var",
+										},
+									},
+								},
+								Tok: token.DEFINE,
+								Rhs: []ast.Expr{
+									&ast.UnaryExpr{
+										Op: token.RANGE,
+										X: &ast.SliceExpr{
+											X: &ast.Ident{
+												Name: arg_name,
+											},
+											Low: &ast.BasicLit{
+												Kind:  token.INT,
+												Value: strconv.Itoa(i),
+											},
+											Slice3: false,
+										},
+									},
+								},
+							},
+						},
+					},
+					Tok: token.DEFINE,
+					X: &ast.SliceExpr{
+						X: &ast.Ident{
+							Name: arg_name,
+						},
+						Low: &ast.BasicLit{
+							Kind:  token.INT,
+							Value: strconv.Itoa(i),
+						},
+						Slice3: false,
+					},
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							&ast.AssignStmt{
+								Lhs: []ast.Expr{
+									&ast.Ident{
+										Name: param.name,
+									},
+								},
+								Tok: token.ASSIGN,
+								Rhs: []ast.Expr{
+									&ast.CallExpr{
+										Fun: &ast.Ident{
+											Name: "append",
+										},
+										Args: []ast.Expr{
+											&ast.Ident{
+												Name: param.name,
+											},
+											&ast.TypeAssertExpr{
+												X: &ast.Ident{
+													Name: "arg_loop_var",
+												},
+												Type: &ast.Ident{
+													Name: param.var_type,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			decl = append(decl, argument_creation...)
+
 		} else {
 			decl = append(decl, &ast.DeclStmt{
 				Decl: &ast.GenDecl{
@@ -537,30 +628,119 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		var decl []ast.Stmt
 		for i, param := range arguments {
 			if param.ellipsis {
-				decl = append(decl, &ast.DeclStmt{
-					Decl: &ast.GenDecl{
-						Tok: token.VAR,
-						Specs: []ast.Spec{
-							&ast.ValueSpec{
-								Names: []*ast.Ident{
-									{
-										Name: param.name,
+				argument_creation := []ast.Stmt{
+					&ast.DeclStmt{
+						Decl: &ast.GenDecl{
+							Tok: token.VAR,
+							Specs: []ast.Spec{
+								&ast.ValueSpec{
+									Names: []*ast.Ident{
+										{
+											Name: param.name,
+											Obj: &ast.Object{
+												Kind: ast.Var,
+												Name: param.name,
+											},
+										},
 									},
-								},
-								Type: &ast.ArrayType{
-									Elt: &ast.Ident{
-										Name: param.var_type,
-									},
-								},
-								Values: []ast.Expr{
-									&ast.Ident{
-										Name: arg_name + "[" + strconv.Itoa(i) + ":]",
+									Type: &ast.ArrayType{
+										Elt: &ast.Ident{
+											Name: param.var_type,
+										},
 									},
 								},
 							},
 						},
 					},
-				})
+					&ast.RangeStmt{
+						Key: &ast.Ident{
+							Name: "_, arg_loop_var",
+							Obj: &ast.Object{
+								Kind: ast.Var,
+								Name: "_",
+								Decl: &ast.AssignStmt{
+									Lhs: []ast.Expr{
+										&ast.Ident{
+											Name: "_",
+											Obj: &ast.Object{
+												Kind: ast.Var,
+												Name: "_",
+											},
+										},
+										&ast.Ident{
+											Name: "arg_loop_var",
+											Obj: &ast.Object{
+												Kind: ast.Var,
+												Name: "arg_loop_var",
+											},
+										},
+									},
+									Tok: token.DEFINE,
+									Rhs: []ast.Expr{
+										&ast.UnaryExpr{
+											Op: token.RANGE,
+											X: &ast.SliceExpr{
+												X: &ast.Ident{
+													Name: arg_name,
+												},
+												Low: &ast.BasicLit{
+													Kind:  token.INT,
+													Value: strconv.Itoa(i),
+												},
+												Slice3: false,
+											},
+										},
+									},
+								},
+							},
+						},
+						Tok: token.DEFINE,
+						X: &ast.SliceExpr{
+							X: &ast.Ident{
+								Name: arg_name,
+							},
+							Low: &ast.BasicLit{
+								Kind:  token.INT,
+								Value: strconv.Itoa(i),
+							},
+							Slice3: false,
+						},
+						Body: &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.AssignStmt{
+									Lhs: []ast.Expr{
+										&ast.Ident{
+											Name: param.name,
+										},
+									},
+									Tok: token.ASSIGN,
+									Rhs: []ast.Expr{
+										&ast.CallExpr{
+											Fun: &ast.Ident{
+												Name: "append",
+											},
+											Args: []ast.Expr{
+												&ast.Ident{
+													Name: param.name,
+												},
+												&ast.TypeAssertExpr{
+													X: &ast.Ident{
+														Name: "arg_loop_var",
+													},
+													Type: &ast.Ident{
+														Name: param.var_type,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				decl = append(decl, argument_creation...)
+
 			} else {
 				decl = append(decl, &ast.DeclStmt{
 					Decl: &ast.GenDecl{
