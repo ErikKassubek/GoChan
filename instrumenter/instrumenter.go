@@ -28,10 +28,6 @@ traceElements.go
 Type declarations for the trace elements
 */
 
-/*
-	TODO: assignment of chan
-*/
-
 import (
 	"fmt"
 	"go/ast"
@@ -131,7 +127,6 @@ func instrument_go_file(file_path string) error {
 
 // instrument a given ast file f
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
-	ast.Print(astSet, f)
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -154,11 +149,14 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 			switch n.Rhs[0].(type) {
 			case *ast.CallExpr: // call expression
 				instrument_call_expressions(n)
+			case *ast.UnaryExpr: // receive with assign
+				instrument_receive_with_assign(astSet, n, c)
+
 			}
 		case *ast.SendStmt: // handle send messages
 			instrument_send_statement(astSet, n, c)
 		case *ast.ExprStmt: // handle receive and close
-			instrument_expression_statement(n, c)
+			instrument_expression_statement(astSet, n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements
@@ -416,6 +414,31 @@ func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c 
 	n.Body.List = append(decl, n.Body.List...)
 }
 
+func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c *astutil.Cursor) {
+	if n.Rhs[0].(*ast.UnaryExpr).Op != token.ARROW {
+		return
+	}
+
+	variable := n.Lhs[0].(*ast.Ident).Name
+	channel := n.Rhs[0].(*ast.UnaryExpr).X.(*ast.Ident).Name
+	token := n.Tok
+	c.Replace(&ast.AssignStmt{
+		Lhs: []ast.Expr{
+			&ast.Ident{
+				Name: variable,
+			},
+		},
+		Tok: token,
+		Rhs: []ast.Expr{
+			&ast.CallExpr{
+				Fun: &ast.Ident{
+					Name: channel + ".Receive",
+				},
+			},
+		},
+	})
+}
+
 // instrument if n is a call expression
 func instrument_call_expressions(n *ast.AssignStmt) {
 	// check make functions
@@ -513,18 +536,18 @@ func instrument_send_statement(astStd *token.FileSet, n *ast.SendStmt, c *astuti
 }
 
 // instrument receive and call statements
-func instrument_expression_statement(n *ast.ExprStmt, c *astutil.Cursor) {
+func instrument_expression_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X
 	switch x_part.(type) {
 	case *ast.UnaryExpr:
-		instrument_receive_statement(n, c)
+		instrument_receive_statement(astSet, n, c)
 	case *ast.CallExpr:
 		instrument_close_statement(n, c)
 	}
 }
 
 // instrument receive statements
-func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
+func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X.(*ast.UnaryExpr)
 
 	// check if correct operation
@@ -584,7 +607,6 @@ func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 }
 
 // instrument the creation of new go routines
-// TODO: go statements with lambda functions with arguments
 func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.Cursor) {
 	fc := n.Call.Fun
 	switch function_call := fc.(type) {
