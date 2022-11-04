@@ -29,7 +29,6 @@ Type declarations for the trace elements
 */
 
 /*
-	TODO: arguments in go lambda
 	TODO: handle chan type (extra todo)
 */
 
@@ -132,7 +131,7 @@ func instrument_go_file(file_path string) error {
 
 // instrument a given ast file f
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
-	ast.Print(astSet, f)
+	// ast.Print(astSet, f)
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -779,14 +778,15 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		}
 		function_call.Body.List = append(decl, function_call.Body.List...)
 
+		// arguments of function call
+		func_arg := append([]ast.Expr{function_call}, n.Call.Args...)
+
 		c.Replace(&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
 					Name: "tracer.Spawn",
 				},
-				Args: []ast.Expr{
-					function_call,
-				},
+				Args: func_arg,
 			},
 		})
 	case *ast.Ident:
