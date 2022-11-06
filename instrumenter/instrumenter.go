@@ -152,12 +152,12 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 			case *ast.UnaryExpr: // receive with assign
 				instrument_receive_with_assign(astSet, n, c)
 			}
-			// case *ast.SendStmt: // handle send messages  // TODO: fix
-			// 	instrument_send_statement(astSet, n, c)
+		case *ast.SendStmt: // handle send messages
+			instrument_send_statement(astSet, n, c)
 		case *ast.ExprStmt: // handle receive and close
 			instrument_expression_statement(astSet, n, c)
-			// case *ast.GoStmt: // handle the creation of new go routines  // TODO: fix
-			// 	instrument_go_statements(astSet, n, c)
+		case *ast.GoStmt: // handle the creation of new go routines  // TODO: fix
+			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements  // TODO: fix, s. def
 			instrument_select_statements(astSet, n, c)
 		}
@@ -614,10 +614,12 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 	case *ast.SelectorExpr:
 		channel = get_selector_expression_name(c)
 	}
+
 	value := ""
 
 	// get what is send through the channel
 	v := n.Value
+	// fmt.Printf("%T\n", v)
 	call_expr := false
 	switch lit := v.(type) {
 	case (*ast.BasicLit):
@@ -628,6 +630,17 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 		call_expr = true
 	case *ast.ParenExpr:
 		value = n.Chan.(*ast.Ident).Obj.Decl.(*ast.Field).Type.(*ast.ChanType).Value.(*ast.Ident).Name
+	case *ast.CompositeLit:
+		switch lit_type := lit.Type.(type) {
+		case *ast.StructType:
+			value = "switch{}{}"
+		case *ast.ArrayType:
+			value = "[]" + lit_type.Elt.(*ast.Ident).Name + "{" + lit.Elts[0].(*ast.Ident).Name + "}"
+		}
+	case *ast.SelectorExpr:
+		value = get_selector_expression_name(lit)
+	case *ast.UnaryExpr:
+		value = lit.Op.String() + lit.X.(*ast.CompositeLit).Type.(*ast.Ident).Name + "{}"
 	default:
 		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement", v)
 		panic(errString)
@@ -1006,6 +1019,44 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 					},
 				},
 				Args: func_args,
+			},
+		})
+	case *ast.CallExpr: // TODO: finish blocking/kubernetes58107
+		var name string
+		switch fun := fc.(*ast.CallExpr).Fun.(type) {
+		case *ast.Ident:
+			name = fun.Name
+		case *ast.SelectorExpr:
+			name = get_selector_expression_name(fun)
+		}
+
+		// fmt.Println(name)
+
+		// ast.Print(astSet, fc)
+
+		args := fc.(*ast.CallExpr).Args
+		arg_val := []ast.Expr{
+			&ast.CallExpr{
+				Fun: &ast.Ident{
+					Name: name,
+				},
+				Args: args,
+			},
+		}
+
+		arg_val = append(arg_val, n.Call.Args...)
+
+		c.Replace(&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: "tracer",
+					},
+					Sel: &ast.Ident{
+						Name: "Spawn",
+					},
+				},
+				Args: arg_val,
 			},
 		})
 	default:
