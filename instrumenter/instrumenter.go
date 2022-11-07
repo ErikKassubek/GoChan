@@ -35,7 +35,6 @@ import (
 	"go/printer"
 	"go/token"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -253,7 +252,7 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 	}
 }
 
-// instrument all function parameter, replace them by args_rand any... and
+// instrument all function parameter, replace them by gochanTracerArg any... and
 // add declarations and casting in body
 func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.FuncDecl) {
 	type parameter struct {
@@ -371,8 +370,8 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 		parameter_list = append(parameter_list, parameter{name: name, val_type: val_type, ellipse: ellipse})
 	}
 
-	// replace parameter list with arg_rand ...any
-	paramName := "args_" + randSeq(10)
+	// replace parameter list with gochanTracerArg ...any
+	paramName := "gochanTracerArg"
 	n.Type.Params.List = []*ast.Field{
 		&ast.Field{
 			Names: []*ast.Ident{
@@ -829,7 +828,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
 		}
 
-		arg_name := "args_" + randSeq(10)
+		arg_name := "gochanTracerArg"
 		function_call.Type.Params = &ast.FieldList{
 			List: []*ast.Field{
 				{
@@ -1198,14 +1197,4 @@ func get_selector_expression_name(n *ast.SelectorExpr) string {
 		return get_selector_expression_name(x) + "." + n.Sel.Name
 	}
 	return ""
-}
-
-// get a random sequence of letters
-func randSeq(n int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
 }
