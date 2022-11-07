@@ -621,6 +621,7 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 	v := n.Value
 	// fmt.Printf("%T\n", v)
 	call_expr := false
+	func_lit := false
 	switch lit := v.(type) {
 	case (*ast.BasicLit):
 		value = lit.Value
@@ -641,7 +642,10 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 		value = get_selector_expression_name(lit)
 	case *ast.UnaryExpr:
 		value = lit.Op.String() + lit.X.(*ast.CompositeLit).Type.(*ast.Ident).Name + "{}"
+	case *ast.FuncLit:
+		func_lit = true
 	default:
+		// ast.Print(astSet, v)
 		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement", v)
 		panic(errString)
 	}
@@ -661,6 +665,23 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 				Lparen: token.NoPos,
 				Args: []ast.Expr{
 					v.(*ast.CallExpr),
+				},
+			},
+		})
+	} else if func_lit {
+		c.Replace(&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: channel,
+					},
+					Sel: &ast.Ident{
+						Name: "Send",
+					},
+				},
+				Lparen: token.NoPos,
+				Args: []ast.Expr{
+					v.(*ast.FuncLit),
 				},
 			},
 		})
