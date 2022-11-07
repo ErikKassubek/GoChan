@@ -311,9 +311,9 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 		case *ast.ChanType:
 			switch t_type := t.Value.(type) {
 			case *ast.Ident:
-				val_type = "chan " + t_type.Name
+				val_type = "*tracer.Chan[" + t_type.Name + "]"
 			case *ast.StructType:
-				val_type = "chan struct{}"
+				val_type = "*tracer.Chan[struct{}]"
 			}
 		case *ast.InterfaceType:
 			val_type = "interface{}"
@@ -1008,6 +1008,18 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 
 		func_args = append(func_args, n.Call.Args...)
 
+		for i, r := range n.Call.Args {
+			switch r_type := r.(type) {
+			case (*ast.Ident):
+				r.(*ast.Ident).Name = "&" + r_type.Name
+			case (*ast.SelectorExpr):
+				r = &ast.Ident{
+					Name: "&" + get_selector_expression_name(r_type),
+				}
+			}
+			n.Call.Args[i] = r
+		}
+
 		c.Replace(&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
@@ -1021,7 +1033,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 				Args: func_args,
 			},
 		})
-	case *ast.CallExpr: // TODO: finish blocking/kubernetes58107
+	case *ast.CallExpr:
 		var name string
 		switch fun := fc.(*ast.CallExpr).Fun.(type) {
 		case *ast.Ident:
