@@ -127,14 +127,11 @@ func instrument_go_file(file_path string) error {
 
 // instrument a given ast file f
 func instrument_ast(astSet *token.FileSet, f *ast.File) error {
+	// instrument function declarations f
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
 		switch n := n.(type) {
-		case *ast.GenDecl: // add import of tracer lib if other libs get imported
-			if n.Tok == token.IMPORT {
-				add_tracer_import(n)
-			}
 		case *ast.FuncDecl:
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
 				add_init_call(n)
@@ -143,6 +140,18 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 				}
 			} else {
 				instrument_function_declarations(astSet, n, c)
+			}
+		}
+		return true
+	})
+
+	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
+		n := c.Node()
+
+		switch n := n.(type) {
+		case *ast.GenDecl: // add import of tracer lib if other libs get imported
+			if n.Tok == token.IMPORT {
+				add_tracer_import(n)
 			}
 		case *ast.AssignStmt: // handle assign statements
 			switch n.Rhs[0].(type) {
@@ -155,7 +164,7 @@ func instrument_ast(astSet *token.FileSet, f *ast.File) error {
 			instrument_send_statement(astSet, n, c)
 		case *ast.ExprStmt: // handle receive and close
 			instrument_expression_statement(astSet, n, c)
-		case *ast.GoStmt: // handle the creation of new go routines  // TODO: fix
+		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements  // TODO: fix, s. def
 			instrument_select_statements(astSet, n, c)
@@ -820,9 +829,13 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			switch t := arg.Type.(type) {
 			case *ast.Ident:
 				type_val = t.Name
+			case *ast.SelectorExpr:
+				type_val = get_selector_expression_name(t)
 			case *ast.Ellipsis:
 				type_val = t.Elt.(*ast.Ident).Name
 				ellipsis = true
+			case *ast.ChanType:
+				type_val = "*tracer.Chan[" + t.Value.(*ast.Ident).Name + "]"
 			}
 
 			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
@@ -1002,7 +1015,36 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		}
 		function_call.Body.List = append(decl, function_call.Body.List...)
 
-		// arguments of function call
+		for i, r := range n.Call.Args {
+			// ast.Print(astSet, n)
+			funcArgType := make([]string, 0)
+			switch fun_type := n.Call.Fun.(type) {
+			case *ast.FuncLit:
+				switch assign_type := fun_type.Body.List[i].(type) {
+				case *ast.DeclStmt:
+					switch call_type := assign_type.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Type.(type) {
+					case (*ast.Ident):
+						funcArgType = strings.Split(call_type.Name, ".")
+					case (*ast.SelectorExpr):
+						funcArgType = strings.Split(get_selector_expression_name(call_type), ".")
+					}
+
+					if strings.Split(funcArgType[len(funcArgType)-1], "[")[0] == "Chan" {
+						switch r_type := r.(type) {
+						case (*ast.Ident):
+							r.(*ast.Ident).Name = "&" + r_type.Name
+						case (*ast.SelectorExpr):
+							r = &ast.Ident{
+								Name: "&" + get_selector_expression_name(r_type),
+							}
+						}
+						n.Call.Args[i] = r
+					}
+				}
+
+			}
+		}
+
 		func_arg := append([]ast.Expr{function_call}, n.Call.Args...)
 
 		c.Replace(&ast.ExprStmt{
@@ -1029,15 +1071,37 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		func_args = append(func_args, n.Call.Args...)
 
 		for i, r := range n.Call.Args {
-			switch r_type := r.(type) {
-			case (*ast.Ident):
-				r.(*ast.Ident).Name = "&" + r_type.Name
-			case (*ast.SelectorExpr):
-				r = &ast.Ident{
-					Name: "&" + get_selector_expression_name(r_type),
+			funcArgType := make([]string, 0)
+			switch fun_type := n.Call.Fun.(type) {
+			case *ast.Ident:
+				if fun_type.Obj != nil {
+					switch decl_type := fun_type.Obj.Decl.(type) {
+					case *ast.FuncDecl:
+						switch assign_type := decl_type.Body.List[i].(type) {
+						case *ast.AssignStmt:
+							switch call_type := assign_type.Rhs[0].(type) {
+							case (*ast.Ident):
+								funcArgType = strings.Split(call_type.Name, ".")
+							case (*ast.SelectorExpr):
+								funcArgType = strings.Split(get_selector_expression_name(call_type), ".")
+							}
+							if strings.Split(funcArgType[len(funcArgType)-1], "[")[0] == "Chan" {
+								switch r_type := r.(type) {
+								case (*ast.Ident):
+									r.(*ast.Ident).Name = "&" + r_type.Name
+								case (*ast.SelectorExpr):
+									r = &ast.Ident{
+										Name: "&" + get_selector_expression_name(r_type),
+									}
+								}
+								n.Call.Args[i] = r
+							}
+
+						}
+					}
 				}
+
 			}
-			n.Call.Args[i] = r
 		}
 
 		c.Replace(&ast.ExprStmt{

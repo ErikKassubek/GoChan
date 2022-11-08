@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+func func1(x chan int, i int) {
+	x <- i
+}
+
 func main() {
 	x := make(chan int)
 	y := make(chan int)
@@ -22,9 +26,11 @@ func main() {
 	b := make(chan int, 0)
 	c := make(chan string, 0)
 
-	go func() { x <- 1 }()
+	i := 3
+
+	go func1(x, i)
 	go func() { <-x; x <- 1 }()
-	go func() { y <- 1; <-x; b <- 1 }()
+	go func(w chan int, i int) { y <- 1; <-x; w <- i }(b, i)
 	go func() { <-y }()
 
 	time.Sleep(1 * time.Second)
@@ -42,6 +48,7 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 }
+
 ```
 After running the instrumenter with
 ```./instrumenter/instrumenter -in=./fold -show_trace```
@@ -58,8 +65,16 @@ import (
 	"github.com/ErikKassubek/GoChan/tracer"
 )
 
+func func1(gochanTracerArg ...any,) {
+	x := gochanTracerArg[0].(*tracer.Chan[int])
+	i := gochanTracerArg[1].(int)
+	x.Send(i)
+
+}
+
 func main() {
 	tracer.Init()
+	
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
@@ -67,9 +82,20 @@ func main() {
 	b := tracer.NewChan[int](0)
 	c := tracer.NewChan[string](0)
 
-	tracer.Spawn(func(gochanTracerArg ...any) { x.Send(1) })
+	i := 3
+	
+	tracer.Spawn(func1, &x, i)
+	
 	tracer.Spawn(func(gochanTracerArg ...any) { x.Receive(); x.Send(1) })
-	tracer.Spawn(func(gochanTracerArg ...any) { y.Send(1); x.Receive(); b.Send(1) })
+	
+	tracer.Spawn(func(gochanTracerArg ...any) {
+		var w *tracer.Chan[int] = gochanTracerArg[0].(*tracer.Chan[int])
+		var i int = gochanTracerArg[1].(int)
+		y.Send(1)
+		x.Receive()
+		w.Send(i)
+	}, &b, i)
+	
 	tracer.Spawn(func(gochanTracerArg ...any) { y.Receive() })
 
 	time.Sleep(1 * time.Second)
@@ -96,7 +122,6 @@ func main() {
 	time.Sleep(2 * time.Second)
 	tracer.PrintTrace()
 }
-
 ```
 After installing the tracer library with 
 ``` 
