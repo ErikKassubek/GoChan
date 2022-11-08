@@ -1115,17 +1115,19 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 		// check for default, add tracer.PostDefault if found
 		if c.(*ast.CommClause).Comm == nil {
 			d = true
-			c.(*ast.CommClause).Body = append(c.(*ast.CommClause).Body, &ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun: &ast.Ident{
-						Name: "tracer.PostDefault",
+			c.(*ast.CommClause).Body = append([]ast.Stmt{
+				&ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun: &ast.Ident{
+							Name: "tracer.PostDefault",
+						},
 					},
-				},
-			})
+				}}, c.(*ast.CommClause).Body...)
 			continue
 		}
 
 		// TODO: add brackets with arguments after function call
+		var name string
 		switch c_type := c.(*ast.CommClause).Comm.(type) {
 		case *ast.ExprStmt: // receive in switch without assign
 			f := c_type.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr)
@@ -1134,7 +1136,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			if f.Sel.Name != "Receive" {
 				continue
 			}
-			name := f.X.(*ast.Ident).Name
+			name = f.X.(*ast.Ident).Name
 			cases = append(cases, name)
 
 			f.X.(*ast.Ident).Name = "<-" + name
@@ -1142,16 +1144,32 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 
 		case *ast.AssignStmt: // receive with assign
 			f := c_type.Rhs[0]
-			name := strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")
+			name = strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")[0]
 			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Rhs[0] = &ast.SelectorExpr{
 				X: &ast.Ident{
-					Name: "<-" + name[0],
+					Name: "<-" + name,
 				},
 				Sel: &ast.Ident{
 					Name: "GetChan()",
 				},
 			}
 		}
+
+		// add post select
+		c.(*ast.CommClause).Body = append([]ast.Stmt{
+			&ast.ExprStmt{
+				&ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X: &ast.Ident{
+							Name: name,
+						},
+						Sel: &ast.Ident{
+							Name: "PostSelect",
+						},
+					},
+				},
+			},
+		}, c.(*ast.CommClause).Body...)
 	}
 
 	// add cases to preSelect
