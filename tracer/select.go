@@ -35,7 +35,18 @@ func PreSelect(def bool, channels ...int) {
 	counter[index]++
 
 	traces[index] = append(traces[index], &TracePreSelect{channels, def})
+}
 
+// add at begging of select block
+func (ch *Chan[T]) PostSelect() {
+	index := getIndex()
+	counter[index]++
+
+	senderId := ch.sender[0]
+	ch.sender = ch.sender[1:]
+
+	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
+		SenderId: senderId, timestamp: counter[index]})
 }
 
 // add to default statement of select
