@@ -1,5 +1,7 @@
 package tracer
 
+import "sync"
+
 /*
 Copyright (c) 2022, Erik Kassubek
 All rights reserved.
@@ -36,6 +38,7 @@ type Chan[T any] struct {
 	id              int
 	sender          []int
 	senderTimestamp []int
+	lock            sync.Mutex
 }
 
 // create a new channel with type T and size size, drop in replacement for
@@ -58,6 +61,7 @@ func (ch *Chan[T]) GetId() int {
 
 // drop in replacement for sending val on channel c
 func (ch *Chan[T]) Send(val T) {
+	ch.lock.Lock()
 	index := getIndex()
 	counter[index]++
 
@@ -70,10 +74,12 @@ func (ch *Chan[T]) Send(val T) {
 
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
 		SenderId: index, timestamp: counter[index]})
+	ch.lock.Unlock()
 }
 
 // drop in replacement for receiving value on channel chan and returning value
 func (ch *Chan[T]) Receive() T {
+	ch.lock.Lock()
 	index := getIndex()
 
 	counter[index]++
@@ -87,12 +93,15 @@ func (ch *Chan[T]) Receive() T {
 
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
 		SenderId: senderId, timestamp: senderTimestamp})
+	ch.lock.Unlock()
 	return res
 }
 
 // drop in replacement for closing a channel
 func (ch *Chan[T]) Close() {
+	ch.lock.Lock()
 	index := getIndex()
 	close(ch.c)
 	traces[index] = append(traces[index], &TraceClose{ch.id})
+	ch.lock.Unlock()
 }
