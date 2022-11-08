@@ -8,13 +8,19 @@
 We use the following go code as example:
 ```
 // ./fold/main.go
+package main
+
+import (
+	"time"
+)
+
 func main() {
-	x := make(chan int, 0)
-	y := make(chan int, 0)
+	x := make(chan int)
+	y := make(chan int)
 
 	a := make(chan int, 1)
 	b := make(chan int, 0)
-	c := make(chan int, 0)
+	c := make(chan string, 0)
 
 	go func() { x <- 1 }()
 	go func() { <-x; x <- 1 }()
@@ -45,15 +51,21 @@ The output folder contains a folder ./fold, which contains the translated files.
 In our case we get 
 ```
 // ./output/fold/main.go
+package main
+
+import (
+	"time"
+	"github.com/ErikKassubek/GoChan/tracer"
+)
+
 func main() {
 	tracer.Init()
-	
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
 	a := tracer.NewChan[int](1)
 	b := tracer.NewChan[int](0)
-	c := tracer.NewChan[int](0)
+	c := tracer.NewChan[string](0)
 
 	tracer.Spawn(func(gochanTracerArg ...any) { x.Send(1) })
 	tracer.Spawn(func(gochanTracerArg ...any) { x.Receive(); x.Send(1) })
@@ -84,6 +96,7 @@ func main() {
 	time.Sleep(2 * time.Second)
 	tracer.PrintTrace()
 }
+
 ```
 After installing the tracer library with 
 ``` 
