@@ -44,9 +44,11 @@ func (ch *Chan[T]) PostSelect() {
 
 	senderId := ch.sender[0]
 	ch.sender = ch.sender[1:]
+	senderTimestamp := ch.senderTimestamp[0]
+	ch.senderTimestamp = ch.senderTimestamp[1:]
 
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: senderId, timestamp: counter[index]})
+		SenderId: senderId, timestamp: senderTimestamp})
 }
 
 // add to default statement of select

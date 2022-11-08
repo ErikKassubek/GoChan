@@ -32,9 +32,10 @@ var numberOfChan int = 0
 
 // struct to implement a drop in replacement for a channel
 type Chan[T any] struct {
-	c      chan T
-	id     int
-	sender []int
+	c               chan T
+	id              int
+	sender          []int
+	senderTimestamp []int
 }
 
 // create a new channel with type T and size size, drop in replacement for
@@ -64,6 +65,7 @@ func (ch *Chan[T]) Send(val T) {
 	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: true})
 
 	ch.sender = append(ch.sender, index)
+	ch.senderTimestamp = append(ch.senderTimestamp, counter[index])
 	ch.c <- val
 
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
@@ -80,9 +82,11 @@ func (ch *Chan[T]) Receive() T {
 	res := <-ch.c
 	senderId := ch.sender[0]
 	ch.sender = ch.sender[1:]
+	senderTimestamp := ch.senderTimestamp[0]
+	ch.senderTimestamp = ch.senderTimestamp[1:]
 
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: senderId, timestamp: counter[index]})
+		SenderId: senderId, timestamp: senderTimestamp})
 	return res
 }
 
