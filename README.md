@@ -8,24 +8,33 @@
 We use the following go code as example:
 ```
 // ./fold/main.go
-
-package main
-
-import (
-	"time"
-)
-
 func main() {
 	x := make(chan int, 0)
 	y := make(chan int, 0)
 
+	a := make(chan int, 1)
+	b := make(chan int, 0)
+	c := make(chan int, 0)
+
 	go func() { x <- 1 }()
 	go func() { <-x; x <- 1 }()
-	go func() { y <- 1; <-x }()
+	go func() { y <- 1; <-x; b <- 1 }()
 	go func() { <-y }()
 
+	time.Sleep(1 * time.Second)
+
+	select {
+	case <-a:
+		println("a")
+	case <-b:
+		println("b")
+	case <-c:
+		println("c")
+	default:
+		print("default")
+	}
+
 	time.Sleep(2 * time.Second)
-}
 }
 ```
 After running the instrumenter with
@@ -36,21 +45,41 @@ The output folder contains a folder ./fold, which contains the translated files.
 In our case we get 
 ```
 // ./output/fold/main.go
-package main
-
-import (
-	"time"
-	"github.com/ErikKassubek/GoChan/tracer"
-)
-
 func main() {
 	tracer.Init()
+	
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
+
+	a := tracer.NewChan[int](1)
+	b := tracer.NewChan[int](0)
+	c := tracer.NewChan[int](0)
+
 	tracer.Spawn(func(gochanTracerArg ...any) { x.Send(1) })
 	tracer.Spawn(func(gochanTracerArg ...any) { x.Receive(); x.Send(1) })
-	tracer.Spawn(func(gochanTracerArg ...any) { y.Send(1); x.Receive() })
+	tracer.Spawn(func(gochanTracerArg ...any) { y.Send(1); x.Receive(); b.Send(1) })
 	tracer.Spawn(func(gochanTracerArg ...any) { y.Receive() })
+
+	time.Sleep(1 * time.Second)
+	
+	{
+		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId())
+
+		select {
+		case <-a.GetChan():
+			a.PostSelect()
+			println("a")
+		case <-b.GetChan():
+			b.PostSelect()
+			println("b")
+		case <-c.GetChan():
+			c.PostSelect()
+			println("c")
+		default:
+			tracer.PostDefault()
+			print("default")
+		}
+	}
 
 	time.Sleep(2 * time.Second)
 	tracer.PrintTrace()
@@ -62,9 +91,9 @@ go get github.com/ErikKassubek/GoChan/tracer
 ```
 in ./output/fold/, we can run the translated project and get the following trace:
 ```
-[signal(2), signal(3), signal(4), signal(5)]
+[signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5?, default), post(4, 3, 4?)]
 [wait(2), pre(1!), post(2, 1, 1!)]
 [wait(3), pre(1?), post(2, 1, 1?), pre(1!), post(3, 2, 1!)]
-[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?)]
+[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?), pre(4!), post(4, 3, 4!)]
 [wait(5), pre(2?), post(4, 1, 2?)]
 ```
