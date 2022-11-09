@@ -74,7 +74,6 @@ func func1(gochanTracerArg ...any,) {
 
 func main() {
 	tracer.Init()
-	
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
