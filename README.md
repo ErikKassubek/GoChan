@@ -20,9 +20,6 @@ func main() {
 	b := make(chan int, 0)
 	c := make(chan string, 0)
 
-	var f sync.RWMutex
-	var g sync.Mutex
-
 	i := 3
 
 	go func1(x, i)
@@ -94,9 +91,6 @@ func main() {
 	a := tracer.NewChan[int](1)
 	b := tracer.NewChan[int](0)
 	c := tracer.NewChan[string](0)
-
-	var f sync.RWMutex
-	var g sync.Mutex
 
 	i := 3
 	tracer.Spawn(func1, &x, i)
