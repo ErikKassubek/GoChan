@@ -445,6 +445,20 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 					},
 				},
 			})
+			// add empty assign to avoid unused variables
+			declarations = append(declarations, &ast.AssignStmt{
+				Lhs: []ast.Expr{
+					&ast.Ident{
+						Name: "_",
+					},
+				},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{
+					&ast.Ident{
+						Name: elem.name,
+					},
+				},
+			})
 		}
 
 	}

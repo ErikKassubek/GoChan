@@ -8,14 +8,8 @@
 We use the following go code as example:
 ```
 // ./fold/main.go
-package main
-
-import (
-	"time"
-)
-
 func func1(x chan int, i int) {
-	x <- i
+	x <- 1
 }
 
 func main() {
@@ -26,11 +20,29 @@ func main() {
 	b := make(chan int, 0)
 	c := make(chan string, 0)
 
+	var f sync.RWMutex
+	var g sync.Mutex
+
 	i := 3
 
 	go func1(x, i)
-	go func() { <-x; x <- 1 }()
-	go func(w chan int, i int) { y <- 1; <-x; w <- i }(b, i)
+	go func() {
+		f.Lock()
+		g.Lock()
+		g.Unlock()
+		f.Unlock()
+		<-x
+		x <- 1
+	}()
+	go func(w chan int, i int) {
+		g.Lock()
+		f.Lock()
+		f.Unlock()
+		g.Unlock()
+		y <- 1
+		<-x
+		w <- i
+	}(b, i)
 	go func() { <-y }()
 
 	time.Sleep(1 * time.Second)
@@ -48,7 +60,6 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 }
-
 ```
 After running the instrumenter with
 ```./instrumenter/instrumenter -chan -in=./fold -show_trace```
@@ -61,14 +72,17 @@ In our case we get
 package main
 
 import (
+	"sync"
 	"time"
 	"github.com/ErikKassubek/GoChan/tracer"
 )
 
 func func1(gochanTracerArg ...any,) {
 	x := gochanTracerArg[0].(*tracer.Chan[int])
+	_ = x
 	i := gochanTracerArg[1].(int)
-	x.Send(i)
+	_ = i
+	x.Send(1)
 
 }
 
@@ -81,24 +95,35 @@ func main() {
 	b := tracer.NewChan[int](0)
 	c := tracer.NewChan[string](0)
 
+	var f sync.RWMutex
+	var g sync.Mutex
+
 	i := 3
-	
 	tracer.Spawn(func1, &x, i)
-	
-	tracer.Spawn(func(gochanTracerArg ...any) { x.Receive(); x.Send(1) })
-	
+	tracer.Spawn(func(gochanTracerArg ...any) {
+		f.Lock()
+		g.Lock()
+		g.Unlock()
+		f.Unlock()
+		x.Receive()
+		x.Send(1)
+
+	})
 	tracer.Spawn(func(gochanTracerArg ...any) {
 		var w *tracer.Chan[int] = gochanTracerArg[0].(*tracer.Chan[int])
 		var i int = gochanTracerArg[1].(int)
+		g.Lock()
+		f.Lock()
+		f.Unlock()
+		g.Unlock()
 		y.Send(1)
 		x.Receive()
 		w.Send(i)
+
 	}, &b, i)
-	
 	tracer.Spawn(func(gochanTracerArg ...any) { y.Receive() })
 
 	time.Sleep(1 * time.Second)
-	
 	{
 		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId())
 
@@ -121,6 +146,7 @@ func main() {
 	time.Sleep(2 * time.Second)
 	tracer.PrintTrace()
 }
+
 ```
 After installing the tracer library with 
 ``` 
