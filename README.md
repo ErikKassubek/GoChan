@@ -51,7 +51,7 @@ func main() {
 
 ```
 After running the instrumenter with
-```./instrumenter/instrumenter -in=./fold -show_trace```
+```./instrumenter/instrumenter -chan -in=./fold -show_trace```
 where ./fold is the folder containing our project, including our main.go file, an output folder is created.
 ./fold should contains a go.mod and go.sum file.
 The output folder contains a folder ./fold, which contains the translated files.

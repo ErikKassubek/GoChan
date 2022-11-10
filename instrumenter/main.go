@@ -36,18 +36,27 @@ import (
 
 var path_separator string = "/"
 var file_names []string = make([]string, 0)
+
+var instrumentChan bool
+var instrumentMutex bool
+
 var in string
 var out string
+
 var show_trace bool
 
 // read command line arguments
 func command_line_args() error {
+	instrumentChan_ := flag.Bool("chan", false, "instrument for channel")
+	instrumentMutex_ := flag.Bool("mut", false, "instrument for mutex")
 	flag.StringVar(&in, "in", "", "input path")
 	flag.StringVar(&out, "out", "."+path_separator+"output"+path_separator, "output path")
 	show_trace_ := flag.Bool("show_trace", false, "show the trace")
 
 	flag.Parse()
 
+	instrumentChan = *instrumentChan_
+	instrumentMutex = *instrumentMutex_
 	show_trace = *show_trace_
 
 	if in == "" {
