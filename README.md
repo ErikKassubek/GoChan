@@ -4,6 +4,8 @@
 - This code is still work in progress and may not work or result in incorrect behavior!
 ```
 
+Witten elaboration at: https://github.com/ErikKassubek/Bachelorarbeit
+
 ## Example
 We use the following go code as example:
 ```
