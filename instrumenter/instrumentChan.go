@@ -32,7 +32,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -159,15 +158,15 @@ func add_show_trace_call(n *ast.FuncDecl) {
 }
 
 func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c *astutil.Cursor) {
-	instrument_function_declaration_return_values(astSet, n)
+	instrument_function_declaration_return_values(astSet, n.Type)
 
-	instrument_function_declaration_parameter(astSet, n)
+	instrument_function_declaration_parameter(astSet, n.Type)
 }
 
 // change the return value of functions if they contain a chan
 func instrument_function_declaration_return_values(astSet *token.FileSet,
-	n *ast.FuncDecl) {
-	astResult := n.Type.Results
+	n *ast.FuncType) {
+	astResult := n.Results
 
 	// do nothing if the functions does not have return values
 	if astResult == nil {
@@ -175,7 +174,7 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 	}
 
 	// traverse all return types
-	for i, res := range n.Type.Results.List {
+	for i, res := range n.Results.List {
 		switch res.Type.(type) {
 		case *ast.ChanType: // do not call continue if channel
 		default:
@@ -193,7 +192,7 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 		}
 
 		// set the translated value
-		n.Type.Results.List[i] = &ast.Field{
+		n.Results.List[i] = &ast.Field{
 			Type: &ast.Ident{
 				Name: translated_string,
 			},
@@ -201,271 +200,41 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 	}
 }
 
-// instrument all function parameter, replace them by gochanTracerArg any... and
-// add declarations and casting in body
-func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.FuncDecl) {
-	type parameter struct {
-		name     string
-		val_type string
-		ellipse  bool
-	}
+// instrument all function parameter
+func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.FuncType) {
+	astResult := n.Params
 
-	// collect parameters
-	param_list := n.Type.Params.List
-	if param_list == nil { // function has no parameter
+	// do nothing if the functions does not have return values
+	if astResult == nil {
 		return
 	}
 
-	if n.Body == nil || n.Body.List == nil { // function is empty
-		return
-	}
-
-	parameter_list := make([]parameter, 0)
-
-	// traverse parameters
-	for _, param := range param_list {
-		name := ""
-		if len(param.Names) != 0 {
-			name = param.Names[0].Name
+	// traverse all parameters
+	for i, res := range astResult.List {
+		switch res.Type.(type) {
+		case *ast.ChanType: // do not call continue if channel
+		default:
+			continue // continue if not a channel
 		}
 
-		val_type := ""
-		ellipse := false
-
-		switch t := param.Type.(type) {
-
-		case *ast.Ident:
-			val_type = t.Name
-
+		translated_string := ""
+		switch v := res.Type.(*ast.ChanType).Value.(type) {
+		case *ast.Ident: // chan <type>
+			translated_string = "tracer.Chan[" + v.Name + "]"
 		case *ast.StructType:
-			val_type = "struct{}"
-
+			translated_string = "tracer.Chan[struct{}]"
 		case *ast.ArrayType:
-			switch t_elt := t.Elt.(type) {
-			case *ast.Ident:
-				val_type = "[]*" + t_elt.Name
-			case *ast.StarExpr:
-				val_type = "[]*" + get_name(astSet, t_elt.X)
-			}
-
-		case *ast.StarExpr:
-			val_type = "*" + get_name(astSet, t.X)
-
-		case *ast.SelectorExpr:
-			val_type = get_selector_expression_name(t)
-
-		case *ast.ChanType:
-			switch t.Value.(type) {
-			case *ast.Ident, *ast.SelectorExpr:
-				val_type = "*tracer.Chan[" + get_name(astSet, t.Value) + "]"
-			case *ast.StructType:
-				val_type = "*tracer.Chan[struct{}]"
-			}
-		case *ast.InterfaceType:
-			val_type = "interface{}"
-		case *ast.FuncType:
-			val_type = "func("
-			if t.Params.List != nil { // function parameter
-				for i, elem := range t.Params.List {
-					val_type = get_name(astSet, elem.Type)
-					val_type += " "
-					switch t_type_type := elem.Type.(type) {
-					case *ast.Ident:
-						val_type += t_type_type.Name
-					case *ast.StarExpr:
-						val_type += "*" + get_name(astSet, t_type_type.X)
-					}
-					if i != len(t.Params.List)-1 {
-						val_type += ", "
-					}
-				}
-			}
-
-		case *ast.MapType:
-			val_type = "map["
-			switch t_key := t.Key.(type) {
-			case *ast.Ident:
-				val_type += t_key.Name
-			case *ast.StarExpr:
-				val_type += "*" + get_name(astSet, t_key.X)
-			}
-			val_type += "]"
-			switch t_val := t.Value.(type) {
-			case *ast.Ident:
-				val_type += t_val.Name
-			case *ast.StarExpr:
-				val_type += "*" + get_name(astSet, t_val.X)
-			}
-		case *ast.Ellipsis:
-			ellipse = true
-			switch t_elt := t.Elt.(type) {
-			case *ast.Ident:
-				val_type += t_elt.Name
-			case *ast.InterfaceType:
-				val_type += "interface{}"
-			case *ast.StarExpr:
-				val_type += ("*" + get_name(astSet, t_elt.X))
-
-			}
+			translated_string = "tracer.Chan[[]" + v.Elt.(*ast.Ident).Name + "]"
 		}
 
-		parameter_list = append(parameter_list, parameter{name: name, val_type: val_type, ellipse: ellipse})
-	}
-
-	// replace parameter list with gochanTracerArg ...any
-	paramName := "gochanTracerArg"
-	n.Type.Params.List = []*ast.Field{
-		&ast.Field{
-			Names: []*ast.Ident{
-				&ast.Ident{
-					Name: paramName,
-				},
-			},
+		// set the translated value
+		n.Params.List[i] = &ast.Field{
+			Names: n.Params.List[i].Names,
 			Type: &ast.Ident{
-				Name: "...any",
+				Name: translated_string,
 			},
-		},
-	}
-
-	// add declarations of parameters in function body
-	declarations := make([]ast.Stmt, 0)
-	for i, elem := range parameter_list {
-		if elem.ellipse {
-			declarations = append(declarations, &ast.AssignStmt{
-				Lhs: []ast.Expr{
-					&ast.Ident{
-						Name: elem.name,
-					},
-				},
-				Tok: token.DEFINE,
-				Rhs: []ast.Expr{
-					&ast.Ident{
-						Name: "make([]" + elem.val_type + ",0)",
-					},
-				},
-			})
-			declarations = append(declarations, &ast.RangeStmt{
-				Key: &ast.Ident{
-					Name: "_, arg_loop_var",
-					Obj: &ast.Object{
-						Kind: ast.Var,
-						Name: "_",
-						Decl: &ast.AssignStmt{
-							Lhs: []ast.Expr{
-								&ast.Ident{
-									Name: "_",
-									Obj: &ast.Object{
-										Kind: ast.Var,
-										Name: "_",
-									},
-								},
-								&ast.Ident{
-									Name: "arg_loop_var",
-									Obj: &ast.Object{
-										Kind: ast.Var,
-										Name: "arg_loop_var",
-									},
-								},
-							},
-							Tok: token.DEFINE,
-							Rhs: []ast.Expr{
-								&ast.UnaryExpr{
-									Op: token.RANGE,
-									X: &ast.SliceExpr{
-										X: &ast.Ident{
-											Name: paramName,
-										},
-										Low: &ast.BasicLit{
-											Kind:  token.INT,
-											Value: strconv.Itoa(i),
-										},
-										Slice3: false,
-									},
-								},
-							},
-						},
-					},
-				},
-				Tok: token.DEFINE,
-				X: &ast.SliceExpr{
-					X: &ast.Ident{
-						Name: paramName,
-					},
-					Low: &ast.BasicLit{
-						Kind:  token.INT,
-						Value: strconv.Itoa(i),
-					},
-					Slice3: false,
-				},
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{
-						&ast.AssignStmt{
-							Lhs: []ast.Expr{
-								&ast.Ident{
-									Name: elem.name,
-								},
-							},
-							Tok: token.ASSIGN,
-							Rhs: []ast.Expr{
-								&ast.CallExpr{
-									Fun: &ast.Ident{
-										Name: "append",
-									},
-									Args: []ast.Expr{
-										&ast.Ident{
-											Name: elem.name,
-										},
-										&ast.TypeAssertExpr{
-											X: &ast.Ident{
-												Name: "arg_loop_var",
-											},
-											Type: &ast.Ident{
-												Name: elem.val_type,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			})
-		} else {
-			rhsName := ""
-			rhsName = paramName + "[" + strconv.Itoa(i) + "].(" + elem.val_type + ")"
-
-			declarations = append(declarations, &ast.AssignStmt{
-				Lhs: []ast.Expr{
-					&ast.Ident{
-						Name: elem.name,
-					},
-				},
-				Tok: token.DEFINE,
-				Rhs: []ast.Expr{
-					&ast.Ident{
-						Name: rhsName,
-					},
-				},
-			})
-			// add empty assign to avoid unused variables
-			declarations = append(declarations, &ast.AssignStmt{
-				Lhs: []ast.Expr{
-					&ast.Ident{
-						Name: "_",
-					},
-				},
-				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{
-					&ast.Ident{
-						Name: elem.name,
-					},
-				},
-			})
 		}
-
 	}
-
-	n.Body.List = append(declarations, n.Body.List...)
 }
 
 func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c *astutil.Cursor) {
@@ -747,329 +516,105 @@ func instrument_close_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astut
 
 // instrument the creation of new go routines
 func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.Cursor) {
-	fc := n.Call.Fun
-	switch function_call := fc.(type) {
-	case *ast.FuncLit: // go with lambda
-		// collect arguments
-		arguments := []arg_elem{}
-		for _, arg := range function_call.Type.Params.List {
-			ellipsis := false
-			type_val := ""
-			switch t := arg.Type.(type) {
-			case *ast.Ident:
-				type_val = t.Name
-			case *ast.SelectorExpr:
-				type_val = get_selector_expression_name(t)
-			case *ast.Ellipsis:
-				type_val = t.Elt.(*ast.Ident).Name
-				ellipsis = true
-			case *ast.ChanType:
-				type_val = "*tracer.Chan[" + get_name(astSet, t.Value) + "]"
-			}
+	var_name := "GoChanRoutineIndex"
 
-			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
+	var func_body *ast.BlockStmt
+	switch t := n.Call.Fun.(type) {
+	case *ast.FuncLit:
+		func_body = &ast.BlockStmt{
+			List: t.Body.List,
 		}
-
-		arg_name := "gochanTracerArg"
-		function_call.Type.Params = &ast.FieldList{
-			List: []*ast.Field{
-				{
-					Names: []*ast.Ident{
-						{
-							Name: arg_name,
-						},
-					},
-					Type: &ast.Ellipsis{
-						Elt: &ast.Ident{
-							Name: "any",
-						},
+	case *ast.Ident, *ast.SelectorExpr:
+		func_body = &ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun:  n.Call.Fun,
+						Args: n.Call.Args,
 					},
 				},
 			},
 		}
-
-		// add argument assignment
-		// add variable declarations
-		var decl []ast.Stmt
-		for i, param := range arguments {
-			if param.ellipsis {
-				argument_creation := []ast.Stmt{
-					&ast.DeclStmt{
-						Decl: &ast.GenDecl{
-							Tok: token.VAR,
-							Specs: []ast.Spec{
-								&ast.ValueSpec{
-									Names: []*ast.Ident{
-										{
-											Name: param.name,
-											Obj: &ast.Object{
-												Kind: ast.Var,
-												Name: param.name,
-											},
-										},
-									},
-									Type: &ast.ArrayType{
-										Elt: &ast.Ident{
-											Name: param.var_type,
-										},
-									},
-								},
-							},
-						},
-					},
-					&ast.RangeStmt{
-						Key: &ast.Ident{
-							Name: "_, arg_loop_var",
-							Obj: &ast.Object{
-								Kind: ast.Var,
-								Name: "_",
-								Decl: &ast.AssignStmt{
-									Lhs: []ast.Expr{
-										&ast.Ident{
-											Name: "_",
-											Obj: &ast.Object{
-												Kind: ast.Var,
-												Name: "_",
-											},
-										},
-										&ast.Ident{
-											Name: "arg_loop_var",
-											Obj: &ast.Object{
-												Kind: ast.Var,
-												Name: "arg_loop_var",
-											},
-										},
-									},
-									Tok: token.DEFINE,
-									Rhs: []ast.Expr{
-										&ast.UnaryExpr{
-											Op: token.RANGE,
-											X: &ast.SliceExpr{
-												X: &ast.Ident{
-													Name: arg_name,
-												},
-												Low: &ast.BasicLit{
-													Kind:  token.INT,
-													Value: strconv.Itoa(i),
-												},
-												Slice3: false,
-											},
-										},
-									},
-								},
-							},
-						},
-						Tok: token.DEFINE,
-						X: &ast.SliceExpr{
-							X: &ast.Ident{
-								Name: arg_name,
-							},
-							Low: &ast.BasicLit{
-								Kind:  token.INT,
-								Value: strconv.Itoa(i),
-							},
-							Slice3: false,
-						},
-						Body: &ast.BlockStmt{
-							List: []ast.Stmt{
-								&ast.AssignStmt{
-									Lhs: []ast.Expr{
-										&ast.Ident{
-											Name: param.name,
-										},
-									},
-									Tok: token.ASSIGN,
-									Rhs: []ast.Expr{
-										&ast.CallExpr{
-											Fun: &ast.Ident{
-												Name: "append",
-											},
-											Args: []ast.Expr{
-												&ast.Ident{
-													Name: param.name,
-												},
-												&ast.TypeAssertExpr{
-													X: &ast.Ident{
-														Name: "arg_loop_var",
-													},
-													Type: &ast.Ident{
-														Name: param.var_type,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				decl = append(decl, argument_creation...)
-
-			} else {
-				decl = append(decl, &ast.DeclStmt{
-					Decl: &ast.GenDecl{
-						Tok: token.VAR,
-						Specs: []ast.Spec{
-							&ast.ValueSpec{
-								Names: []*ast.Ident{
-									{
-										Name: param.name,
-									},
-								},
-								Type: &ast.Ident{
-									Name: param.var_type,
-								},
-								Values: []ast.Expr{
-									&ast.TypeAssertExpr{
-										X: &ast.IndexExpr{
-											X: &ast.Ident{
-												Name: arg_name,
-											},
-											Index: &ast.BasicLit{
-												Kind:  token.INT,
-												Value: strconv.Itoa(i),
-											},
-										},
-										Type: &ast.Ident{
-											Name: param.var_type,
-										},
-									},
-								},
-							},
-						},
-					},
-				})
-			}
-		}
-		function_call.Body.List = append(decl, function_call.Body.List...)
-
-		for i, r := range n.Call.Args {
-			// ast.Print(astSet, n)
-			funcArgType := make([]string, 0)
-			switch fun_type := n.Call.Fun.(type) {
-			case *ast.FuncLit:
-				switch assign_type := fun_type.Body.List[i].(type) {
-				case *ast.DeclStmt:
-					switch call_type := assign_type.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Type.(type) {
-					case (*ast.Ident):
-						funcArgType = strings.Split(call_type.Name, ".")
-					case (*ast.SelectorExpr):
-						funcArgType = strings.Split(get_selector_expression_name(call_type), ".")
-					}
-
-					if strings.Split(funcArgType[len(funcArgType)-1], "[")[0] == "Chan" {
-						switch r_type := r.(type) {
-						case (*ast.Ident):
-							r.(*ast.Ident).Name = "&" + r_type.Name
-						case (*ast.SelectorExpr):
-							r = &ast.Ident{
-								Name: "&" + get_selector_expression_name(r_type),
-							}
-						}
-						n.Call.Args[i] = r
-					}
-				}
-
-			}
-		}
-
-		func_arg := append([]ast.Expr{function_call}, n.Call.Args...)
-
-		c.Replace(&ast.ExprStmt{
-			X: &ast.CallExpr{
-				Fun: &ast.Ident{
-					Name: "tracer.Spawn",
-				},
-				Args: func_arg,
-			},
-		})
-	case *ast.Ident, *ast.SelectorExpr: // go with function
-		name := get_name(astSet, fc)
-
-		func_args := []ast.Expr{&ast.Ident{
-			Name: name,
-		}}
-
-		func_args = append(func_args, n.Call.Args...)
-
-		for i, r := range n.Call.Args {
-			funcArgType := make([]string, 0)
-			switch fun_type := n.Call.Fun.(type) {
-			case *ast.Ident:
-				if fun_type.Obj != nil {
-					switch decl_type := fun_type.Obj.Decl.(type) {
-					case *ast.FuncDecl:
-						switch assign_type := decl_type.Body.List[i].(type) {
-						case *ast.AssignStmt:
-							funcArgType = strings.Split(get_name(astSet, assign_type.Rhs[0]), ".")
-							if strings.Split(funcArgType[len(funcArgType)-1], "[")[0] == "Chan" {
-								switch r_type := r.(type) {
-								case (*ast.Ident):
-									r.(*ast.Ident).Name = "&" + r_type.Name
-								case (*ast.SelectorExpr):
-									r = &ast.Ident{
-										Name: "&" + get_selector_expression_name(r_type),
-									}
-								}
-								n.Call.Args[i] = r
-							}
-
-						}
-					}
-				}
-
-			}
-		}
-
-		c.Replace(&ast.ExprStmt{
-			X: &ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "tracer",
-					},
-					Sel: &ast.Ident{
-						Name: "Spawn",
-					},
-				},
-				Args: func_args,
-			},
-		})
-	case *ast.CallExpr:
-		name := get_name(astSet, fc.(*ast.CallExpr).Fun)
-		// fmt.Println(name)
-
-		// ast.Print(astSet, fc)
-
-		args := fc.(*ast.CallExpr).Args
-		arg_val := []ast.Expr{
-			&ast.CallExpr{
-				Fun: &ast.Ident{
-					Name: name,
-				},
-				Args: args,
-			},
-		}
-
-		arg_val = append(arg_val, n.Call.Args...)
-
-		c.Replace(&ast.ExprStmt{
-			X: &ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "tracer",
-					},
-					Sel: &ast.Ident{
-						Name: "Spawn",
-					},
-				},
-				Args: arg_val,
-			},
-		})
 	default:
-		errString := fmt.Sprintf("Unknown type %T in instrument_go_statement", fc)
-		panic(errString)
+		fmt.Printf("Unknown Type %T in instrument_go_statement", n.Call.Fun)
 	}
+
+	n = &ast.GoStmt{
+		Call: &ast.CallExpr{
+			Fun:  n.Call.Fun,
+			Args: n.Call.Args,
+		},
+	}
+
+	fc := n.Call.Fun
+	switch fc_type := fc.(type) {
+	case *ast.FuncLit: // go with lambda
+		instrument_function_declaration_return_values(astSet, fc_type.Type)
+		instrument_function_declaration_parameter(astSet, fc_type.Type)
+	default:
+		n.Call.Args = nil
+	}
+
+	params := &ast.FieldList{}
+	switch n.Call.Fun.(type) {
+	case *ast.FuncLit:
+		params = n.Call.Fun.(*ast.FuncLit).Type.Params
+	}
+
+	// add PreSpawn
+	c.Replace(&ast.ExprStmt{
+		X: &ast.CallExpr{
+			Fun: &ast.FuncLit{
+				Type: &ast.FuncType{},
+				Body: &ast.BlockStmt{
+					List: []ast.Stmt{
+						&ast.AssignStmt{
+							Lhs: []ast.Expr{
+								&ast.Ident{
+									Name: var_name,
+								},
+							},
+							Tok: token.DEFINE,
+							Rhs: []ast.Expr{
+								&ast.CallExpr{
+									Fun: &ast.Ident{
+										Name: "tracer.SpawnPre",
+									},
+								},
+							},
+						},
+						&ast.GoStmt{
+							Call: &ast.CallExpr{
+								Fun: &ast.FuncLit{
+									Type: &ast.FuncType{
+										Params: params,
+									},
+									Body: &ast.BlockStmt{
+										List: []ast.Stmt{
+											&ast.ExprStmt{
+												X: &ast.CallExpr{
+													Fun: &ast.Ident{
+														Name: "tracer.SpawnPost",
+													},
+													Args: []ast.Expr{
+														&ast.Ident{
+															Name: var_name,
+														},
+													},
+												},
+											},
+											func_body,
+										},
+									},
+								},
+								Args: n.Call.Args,
+							},
+						},
+					},
+				},
+			},
+		},
+	})
 
 }
 
@@ -1101,7 +646,6 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			continue
 		}
 
-		// TODO: add brackets with arguments after function call
 		var name string
 		switch c_type := c.(*ast.CommClause).Comm.(type) {
 		case *ast.ExprStmt: // receive in switch without assign
@@ -1133,7 +677,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 		// add post select
 		c.(*ast.CommClause).Body = append([]ast.Stmt{
 			&ast.ExprStmt{
-				&ast.CallExpr{
+				X: &ast.CallExpr{
 					Fun: &ast.SelectorExpr{
 						X: &ast.Ident{
 							Name: name,
@@ -1230,7 +774,7 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 	case *ast.BasicLit:
 		return n_type.Value
 	case *ast.ChanType:
-		return "chan" + get_name(astSet, n_type.Value)
+		return "chan " + get_name(astSet, n_type.Value)
 	case *ast.StructType:
 		return "struct{}"
 	case *ast.IndexExpr:
