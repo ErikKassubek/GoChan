@@ -32,31 +32,22 @@ spawn.go
 Drop in replacements to create and start a new go routine
 */
 
-// Function to create a new go routine and run a function fn in this routine
-func Spawn(fn func(args ...any), val ...any) {
-	numRut := createRoutinePre()
-	go func() {
-		createRoutinePost(numRut)
-		fn(val...)
-	}()
-}
-
-// update tracing of spawning routine
-func createRoutinePre() int {
+// call before creating routine
+func SpawnPre() int {
 	numberRoutines++
 	index := getIndex()
 	traces[index] = append(traces[index], &TraceSignal{numberRoutines})
 	traces = append(traces, make([]TraceElement, 0))
 	counter[index]++
 	counter = append(counter, 0)
-	traces[numberRoutines] = append(traces[numberRoutines], &TraceWait{numberRoutines})
 	return numberRoutines
 }
 
-// update tracing of spawned routine
-func createRoutinePost(numRut int) {
+// call in newly created routine
+func SpawnPost(numRut int) {
 	id := goid.Get()
 	routineIndexLock.Lock()
 	routineIndex[id] = numRut
 	routineIndexLock.Unlock()
+	traces[numberRoutines] = append(traces[numberRoutines], &TraceWait{numberRoutines})
 }
