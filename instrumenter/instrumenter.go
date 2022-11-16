@@ -103,6 +103,8 @@ func instrument_go_file(file_path string) error {
 		return err
 	}
 
+	fmt.Printf("Instrument file: %s\n", file_path)
+
 	if instrumentChan {
 		instrument_chan(astSet, f)
 	}

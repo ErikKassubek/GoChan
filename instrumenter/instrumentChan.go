@@ -104,7 +104,16 @@ func add_tracer_import(n *ast.File) {
 	}
 
 	if len(n.Decls) == 0 {
-		n.Decls = append(n.Decls, &ast.GenDecl{})
+		n.Decls = append([]ast.Decl{&ast.GenDecl{Tok: token.IMPORT}}, n.Decls...)
+	}
+
+	switch n.Decls[0].(type) {
+	case (*ast.GenDecl):
+		if n.Decls[0].(*ast.GenDecl).Tok != token.IMPORT {
+			n.Decls = append([]ast.Decl{&ast.GenDecl{Tok: token.IMPORT}}, n.Decls...)
+		}
+	default:
+		n.Decls = append([]ast.Decl{&ast.GenDecl{Tok: token.IMPORT}}, n.Decls...)
 	}
 
 	switch n.Decls[0].(type) {
@@ -215,7 +224,10 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 
 	// traverse parameters
 	for _, param := range param_list {
-		name := param.Names[0].Name
+		name := ""
+		if len(param.Names) != 0 {
+			name = param.Names[0].Name
+		}
 
 		val_type := ""
 		ellipse := false
@@ -231,26 +243,21 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 		case *ast.ArrayType:
 			switch t_elt := t.Elt.(type) {
 			case *ast.Ident:
-				val_type = "[]" + t_elt.Name
+				val_type = "[]*" + t_elt.Name
 			case *ast.StarExpr:
-				val_type = "[]*" + t_elt.X.(*ast.Ident).Name
+				val_type = "[]*" + get_name(astSet, t_elt.X)
 			}
 
 		case *ast.StarExpr:
-			switch t_x := t.X.(type) {
-			case *ast.Ident:
-				val_type = "*" + t_x.Name
-			case *ast.SelectorExpr:
-				val_type = "*" + get_selector_expression_name(t_x)
-			}
+			val_type = "*" + get_name(astSet, t.X)
 
 		case *ast.SelectorExpr:
 			val_type = get_selector_expression_name(t)
 
 		case *ast.ChanType:
-			switch t_type := t.Value.(type) {
-			case *ast.Ident:
-				val_type = "*tracer.Chan[" + t_type.Name + "]"
+			switch t.Value.(type) {
+			case *ast.Ident, *ast.SelectorExpr:
+				val_type = "*tracer.Chan[" + get_name(astSet, t.Value) + "]"
 			case *ast.StructType:
 				val_type = "*tracer.Chan[struct{}]"
 			}
@@ -260,18 +267,13 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 			val_type = "func("
 			if t.Params.List != nil { // function parameter
 				for i, elem := range t.Params.List {
-					switch elem_type := elem.Type.(type) {
-					case *ast.Ident:
-						val_type += elem_type.Name
-					case *ast.SelectorExpr:
-						val_type += get_selector_expression_name(elem.Type.(*ast.SelectorExpr))
-					}
+					val_type = get_name(astSet, elem.Type)
 					val_type += " "
 					switch t_type_type := elem.Type.(type) {
 					case *ast.Ident:
 						val_type += t_type_type.Name
 					case *ast.StarExpr:
-						val_type += ("*" + t_type_type.X.(*ast.Ident).Name)
+						val_type += "*" + get_name(astSet, t_type_type.X)
 					}
 					if i != len(t.Params.List)-1 {
 						val_type += ", "
@@ -285,14 +287,14 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 			case *ast.Ident:
 				val_type += t_key.Name
 			case *ast.StarExpr:
-				val_type += "*" + t_key.X.(*ast.Ident).Name
+				val_type += "*" + get_name(astSet, t_key.X)
 			}
 			val_type += "]"
 			switch t_val := t.Value.(type) {
 			case *ast.Ident:
 				val_type += t_val.Name
 			case *ast.StarExpr:
-				val_type += "*" + t_val.X.(*ast.Ident).Name
+				val_type += "*" + get_name(astSet, t_val.X)
 			}
 		case *ast.Ellipsis:
 			ellipse = true
@@ -302,7 +304,7 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 			case *ast.InterfaceType:
 				val_type += "interface{}"
 			case *ast.StarExpr:
-				val_type += ("*" + t_elt.X.(*ast.Ident).Name)
+				val_type += ("*" + get_name(astSet, t_elt.X))
 
 			}
 		}
@@ -472,14 +474,8 @@ func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c 
 	}
 
 	variable := n.Lhs[0].(*ast.Ident).Name
-	var channel string
+	channel := get_name(astSet, n.Rhs[0].(*ast.UnaryExpr).X)
 
-	switch x := n.Rhs[0].(*ast.UnaryExpr).X.(type) {
-	case *ast.Ident:
-		channel = x.Name
-	case *ast.SelectorExpr:
-		channel = get_selector_expression_name(x)
-	}
 	token := n.Tok
 	c.Replace(&ast.AssignStmt{
 		Lhs: []ast.Expr{
@@ -509,7 +505,7 @@ func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 		return
 	}
 
-	if callExp.Fun.(*ast.Ident).Name == "make" {
+	if get_name(astSet, callExp.Fun) == "make" {
 		switch callExp.Args[0].(type) {
 		// make creates a channel
 		case *ast.ChanType:
@@ -560,13 +556,7 @@ func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 // instrument a send statement
 func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astutil.Cursor) {
 	// get the channel name
-	var channel string
-	switch c := n.Chan.(type) {
-	case *ast.Ident:
-		channel = c.Name
-	case *ast.SelectorExpr:
-		channel = get_selector_expression_name(c)
-	}
+	channel := get_name(astSet, n.Chan)
 
 	value := ""
 
@@ -589,17 +579,25 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 		case *ast.StructType:
 			value = "switch{}{}"
 		case *ast.ArrayType:
-			value = "[]" + lit_type.Elt.(*ast.Ident).Name + "{" + lit.Elts[0].(*ast.Ident).Name + "}"
+			value = "[]" + get_name(astSet, lit_type.Elt) + "{" + get_name(astSet, lit.Elts[0]) + "}"
 		}
 	case *ast.SelectorExpr:
 		value = get_selector_expression_name(lit)
 	case *ast.UnaryExpr:
-		value = lit.Op.String() + lit.X.(*ast.CompositeLit).Type.(*ast.Ident).Name + "{}"
+		switch t_type := lit.X.(*ast.CompositeLit).Type.(type) {
+		case *ast.Ident:
+			value = lit.Op.String() + t_type.Name + "{}"
+		case *ast.SelectorExpr:
+			value = lit.Op.String() + get_selector_expression_name(t_type) + "{}"
+
+		}
 	case *ast.FuncLit:
 		func_lit = true
+	case *ast.IndexExpr:
+		value = get_name(astSet, lit.X) + "[" + get_name(astSet, lit.Index)
 	default:
-		// ast.Print(astSet, v)
-		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement", v)
+		ast.Print(astSet, v)
+		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement2", v)
 		panic(errString)
 	}
 
@@ -668,7 +666,9 @@ func instrument_expression_statement(astSet *token.FileSet, n *ast.ExprStmt, c *
 		instrument_receive_statement(astSet, n, c)
 	case *ast.CallExpr:
 		instrument_close_statement(astSet, n, c)
+	case *ast.TypeAssertExpr:
 	default:
+		ast.Print(astSet, x_part)
 		errString := fmt.Sprintf("Unknown type %T in instrument_expression_statement", x_part)
 		panic(errString)
 	}
@@ -689,13 +689,7 @@ func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *ast
 	case *ast.Ident:
 		channel = x_part_x.Name
 	case *ast.CallExpr:
-		switch exp := x_part_x.Fun.(type) {
-		case *ast.SelectorExpr:
-			sel_exp := x_part_x.Fun.(*ast.SelectorExpr)
-			channel = get_selector_expression_name(sel_exp)
-		case *ast.Ident:
-			channel = exp.Name
-		}
+		channel = get_name(astSet, x_part_x.Fun)
 	case *ast.SelectorExpr:
 		channel = get_selector_expression_name(x_part_x)
 	default:
@@ -732,21 +726,11 @@ func instrument_close_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astut
 	}
 
 	// remove all non close statements
-	if x_part.Fun.(*ast.Ident).Name != "close" {
+	if x_part.Fun.(*ast.Ident).Name != "close" || len(x_part.Args) == 0 {
 		return
 	}
 
-	var channel string
-	switch name_elem := x_part.Args[0].(type) {
-	case *ast.Ident:
-		channel = name_elem.Name
-	case *ast.SelectorExpr:
-		channel = get_selector_expression_name(name_elem)
-	default:
-		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement", x_part.Args[0])
-		panic(errString)
-	}
-
+	channel := get_name(astSet, x_part.Args[0])
 	c.Replace(&ast.ExprStmt{
 		X: &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
@@ -780,7 +764,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 				type_val = t.Elt.(*ast.Ident).Name
 				ellipsis = true
 			case *ast.ChanType:
-				type_val = "*tracer.Chan[" + t.Value.(*ast.Ident).Name + "]"
+				type_val = "*tracer.Chan[" + get_name(astSet, t.Value) + "]"
 			}
 
 			arguments = append(arguments, arg_elem{arg.Names[0].Name, type_val, ellipsis})
@@ -1001,13 +985,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			},
 		})
 	case *ast.Ident, *ast.SelectorExpr: // go with function
-		var name string
-		switch function_type_inner := fc.(type) {
-		case *ast.Ident:
-			name = function_type_inner.Name
-		case *ast.SelectorExpr:
-			name = get_selector_expression_name(function_type_inner)
-		}
+		name := get_name(astSet, fc)
 
 		func_args := []ast.Expr{&ast.Ident{
 			Name: name,
@@ -1024,12 +1002,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 					case *ast.FuncDecl:
 						switch assign_type := decl_type.Body.List[i].(type) {
 						case *ast.AssignStmt:
-							switch call_type := assign_type.Rhs[0].(type) {
-							case (*ast.Ident):
-								funcArgType = strings.Split(call_type.Name, ".")
-							case (*ast.SelectorExpr):
-								funcArgType = strings.Split(get_selector_expression_name(call_type), ".")
-							}
+							funcArgType = strings.Split(get_name(astSet, assign_type.Rhs[0]), ".")
 							if strings.Split(funcArgType[len(funcArgType)-1], "[")[0] == "Chan" {
 								switch r_type := r.(type) {
 								case (*ast.Ident):
@@ -1063,14 +1036,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 			},
 		})
 	case *ast.CallExpr:
-		var name string
-		switch fun := fc.(*ast.CallExpr).Fun.(type) {
-		case *ast.Ident:
-			name = fun.Name
-		case *ast.SelectorExpr:
-			name = get_selector_expression_name(fun)
-		}
-
+		name := get_name(astSet, fc.(*ast.CallExpr).Fun)
 		// fmt.Println(name)
 
 		// ast.Print(astSet, fc)
@@ -1213,6 +1179,74 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			},
 		},
 	)
+}
+
+// get name
+func get_name(astSet *token.FileSet, n ast.Expr) string {
+	switch n_type := n.(type) {
+	case *ast.Ident:
+		return n_type.Name
+	case *ast.SelectorExpr:
+		return get_selector_expression_name(n_type)
+	case *ast.StarExpr:
+		return "*" + get_name(astSet, n.(*ast.StarExpr).X)
+	case *ast.CallExpr:
+		arguments := make([]string, 0)
+		for _, a := range n.(*ast.CallExpr).Args {
+			arguments = append(arguments, get_name(astSet, a))
+		}
+		name := get_name(astSet, n.(*ast.CallExpr).Fun) + "("
+		for _, a := range arguments {
+			name += a + ", "
+		}
+		name += ")"
+		return name
+	case *ast.ParenExpr:
+		return get_name(astSet, n_type.X)
+	case *ast.TypeAssertExpr:
+		return get_name(astSet, n_type.Type)
+	case *ast.FuncType:
+		name := "func("
+		if n_type.Params != nil {
+			for _, a := range n_type.Params.List {
+				name += get_name(astSet, a.Type) + ", "
+			}
+		}
+		name += ")"
+		if n_type.Results != nil {
+			name += "("
+			for _, a := range n_type.Results.List {
+				name += get_name(astSet, a.Type) + ", "
+			}
+			name += ")"
+		}
+		return name
+	case *ast.FuncLit:
+		return get_name(astSet, n_type.Type)
+	case *ast.InterfaceType:
+		return "interface{}"
+	case *ast.ArrayType:
+		return "[]" + get_name(astSet, n_type.Elt)
+	case *ast.BasicLit:
+		return n_type.Value
+	case *ast.ChanType:
+		return "chan" + get_name(astSet, n_type.Value)
+	case *ast.StructType:
+		return "struct{}"
+	case *ast.IndexExpr:
+		return get_name(astSet, n_type.X) + "[" + get_name(astSet, n_type.Index) + "]"
+	case *ast.BinaryExpr:
+		return get_name(astSet, n_type.X) + n_type.Op.String() + get_name(astSet, n_type.Y)
+	case *ast.UnaryExpr:
+		return n_type.Op.String() + get_name(astSet, n_type.X)
+	case *ast.MapType:
+		return "map[" + get_name(astSet, n_type.Key) + "]" + get_name(astSet, n_type.Value)
+	case *ast.Ellipsis:
+		return "..." + get_name(astSet, n_type.Elt)
+	default:
+		ast.Print(astSet, n)
+		panic(fmt.Sprintf("Could not get name of type %T\n", n))
+	}
 }
 
 // get the full name of an selector expression
