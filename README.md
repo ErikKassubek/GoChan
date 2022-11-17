@@ -6,6 +6,13 @@
 
 Witten elaboration at: https://github.com/ErikKassubek/Bachelorarbeit
 
+## Makefile 
+You can run the instrumenter and build the created output by running
+```
+make IN="<input>"
+```
+where \<input> is the path to the code.
+
 ## Example
 We use the following go code as example:
 ```
