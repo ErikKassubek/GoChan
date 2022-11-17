@@ -40,18 +40,27 @@ var routineIndex = make(map[int64]int)
 var numberRoutines = 0
 
 var traces = make([]([]TraceElement), 0) // lists of traces
+var tracesLock sync.RWMutex
 
 var counter = make([]int, 0) // PC
+var counterLock sync.RWMutex
 
 func Init() {
+	tracesLock.Lock()
 	traces = append(traces, []TraceElement{})
+	tracesLock.Unlock()
+
+	counterLock.Lock()
 	counter = append(counter, 0)
+	counterLock.Unlock()
+
 	routineIndexLock.Lock()
 	routineIndex[goid.Get()] = 0
 	routineIndexLock.Unlock()
 }
 
 func PrintTrace() {
+	tracesLock.RLock()
 	for _, trace := range traces {
 		print("[")
 		for i, element := range trace {
@@ -62,6 +71,7 @@ func PrintTrace() {
 		}
 		println("]")
 	}
+	tracesLock.RUnlock()
 }
 
 // get the routine trace index

@@ -30,24 +30,33 @@ Drop in replacements for channels and send and receive functions
 
 var numberOfChan int = 0
 
+type Message[T any] struct {
+	info            T
+	sender          int
+	senderTimestamp int
+}
+
+// get message info
+func (m *Message[T]) GetInfo() T {
+	return m.info
+}
+
 // struct to implement a drop in replacement for a channel
 type Chan[T any] struct {
-	c               chan T
-	id              int
-	sender          []int
-	senderTimestamp []int
+	c  chan Message[T]
+	id int
 }
 
 // create a new channel with type T and size size, drop in replacement for
 // make(chan T, size), size = 0 for unbuffered channel
 func NewChan[T any](size int) Chan[T] {
-	ch := Chan[T]{c: make(chan T, size), id: numberOfChan, sender: make([]int, 0)}
+	ch := Chan[T]{c: make(chan Message[T], size), id: numberOfChan}
 	numberOfChan++
 	return ch
 }
 
 // get the channel, manly for switch
-func (ch *Chan[T]) GetChan() chan T {
+func (ch *Chan[T]) GetChan() chan Message[T] {
 	return ch.c
 }
 
@@ -59,40 +68,58 @@ func (ch *Chan[T]) GetId() int {
 // drop in replacement for sending val on channel c
 func (ch *Chan[T]) Send(val T) {
 	index := getIndex()
+
+	counterLock.Lock()
 	counter[index]++
+	counterLock.Unlock()
 
 	// add pre event to tracer
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: true})
+	tracesLock.Unlock()
 
-	ch.sender = append(ch.sender, index)
-	ch.senderTimestamp = append(ch.senderTimestamp, counter[index])
-	ch.c <- val
+	ch.c <- Message[T]{
+		info:            val,
+		sender:          index,
+		senderTimestamp: counter[index],
+	}
 
+	counterLock.RLock()
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
 		SenderId: index, timestamp: counter[index]})
+	tracesLock.Unlock()
+	counterLock.RUnlock()
 }
 
 // drop in replacement for receiving value on channel chan and returning value
 func (ch *Chan[T]) Receive() T {
 	index := getIndex()
 
+	counterLock.Lock()
 	counter[index]++
+	counterLock.Unlock()
+
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: false})
+	tracesLock.Unlock()
 
 	res := <-ch.c
-	senderId := ch.sender[0]
-	ch.sender = ch.sender[1:]
-	senderTimestamp := ch.senderTimestamp[0]
-	ch.senderTimestamp = ch.senderTimestamp[1:]
 
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: senderId, timestamp: senderTimestamp})
-	return res
+		SenderId: res.sender, timestamp: res.senderTimestamp})
+	tracesLock.Unlock()
+
+	return res.info
 }
 
 // drop in replacement for closing a channel
 func (ch *Chan[T]) Close() {
 	index := getIndex()
 	close(ch.c)
+
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceClose{ch.id})
+	tracesLock.Unlock()
 }

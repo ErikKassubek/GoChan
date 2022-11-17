@@ -34,7 +34,9 @@ func PreSelect(def bool, channels ...int) {
 	index := getIndex()
 	counter[index]++
 
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePreSelect{channels, def})
+	tracesLock.Unlock()
 }
 
 // add at begging of select block
@@ -42,13 +44,12 @@ func (ch *Chan[T]) PostSelect() {
 	index := getIndex()
 	counter[index]++
 
-	senderId := ch.sender[0]
-	ch.sender = ch.sender[1:]
-	senderTimestamp := ch.senderTimestamp[0]
-	ch.senderTimestamp = ch.senderTimestamp[1:]
+	res := <-ch.c
 
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: senderId, timestamp: senderTimestamp})
+		SenderId: res.sender, timestamp: res.senderTimestamp})
+	tracesLock.Unlock()
 }
 
 // add to default statement of select
@@ -56,5 +57,7 @@ func PostDefault() {
 	index := getIndex()
 	counter[index]++
 
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceDefault{})
+	tracesLock.Unlock()
 }

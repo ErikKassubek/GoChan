@@ -36,10 +36,17 @@ Drop in replacements to create and start a new go routine
 func SpawnPre() int {
 	numberRoutines++
 	index := getIndex()
+
+	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceSignal{numberRoutines})
 	traces = append(traces, make([]TraceElement, 0))
+	tracesLock.Unlock()
+
+	counterLock.Lock()
 	counter[index]++
 	counter = append(counter, 0)
+	counterLock.Unlock()
+
 	return numberRoutines
 }
 
@@ -49,5 +56,8 @@ func SpawnPost(numRut int) {
 	routineIndexLock.Lock()
 	routineIndex[id] = numRut
 	routineIndexLock.Unlock()
-	traces[numberRoutines] = append(traces[numberRoutines], &TraceWait{numberRoutines})
+
+	tracesLock.Lock()
+	traces[numRut] = append(traces[numRut], &TraceWait{numRut})
+	tracesLock.Unlock()
 }
