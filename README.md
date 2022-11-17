@@ -54,8 +54,8 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	select {
-	case <-a:
-		println("a")
+	case x := <-a:
+		println(x)
 	case <-b:
 		println("b")
 	case <-c:
@@ -131,7 +131,8 @@ func main() {
 		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId())
 
 		select {
-		case <-a.GetChan():
+		case x_sel := <-a.GetChan():
+			x := x_sel.getInfo()
 			a.PostSelect()
 			println("a")
 		case <-b.GetChan():
