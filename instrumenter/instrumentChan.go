@@ -41,8 +41,6 @@ import (
 func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 	add_tracer_import(f)
 
-	ast.Print(astSet, f)
-
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
