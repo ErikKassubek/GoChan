@@ -41,6 +41,8 @@ import (
 func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 	add_tracer_import(f)
 
+	ast.Print(astSet, f)
+
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -661,9 +663,14 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			f.X.(*ast.Ident).Name = "<-" + name
 			f.Sel.Name = "GetChan"
 
-		case *ast.AssignStmt: // receive with assign
+		case *ast.AssignStmt: // receive with assign (:=)
+			assign_name := get_name(astSet, c_type.Lhs[0])
 			f := c_type.Rhs[0]
 			name = strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")[0]
+
+			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Lhs[0] = &ast.Ident{
+				Name: assign_name + "_sel",
+			}
 			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Rhs[0] = &ast.SelectorExpr{
 				X: &ast.Ident{
 					Name: "<-" + name,
@@ -672,6 +679,26 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 					Name: "GetChan()",
 				},
 			}
+			c.(*ast.CommClause).Body = append([]ast.Stmt{
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{
+						&ast.Ident{
+							Name: assign_name,
+						},
+					},
+					Tok: token.DEFINE,
+					Rhs: []ast.Expr{
+						&ast.SelectorExpr{
+							X: &ast.Ident{
+								Name: assign_name + "_sel",
+							},
+							Sel: &ast.Ident{
+								Name: "GetInfo()",
+							},
+						},
+					},
+				},
+			}, c.(*ast.CommClause).Body...)
 		}
 
 		// add post select

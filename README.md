@@ -17,6 +17,167 @@ where \<input> is the path to the code.
 We use the following go code as example:
 ```
 // ./fold/main.go
+package main
+
+import (
+	"time"
+)
+
+// import "time"
+
+/*
+func main() {
+	tracer.Init()
+
+	x := tracer.NewChan[int](0)
+	y := tracer.NewChan[string](0)
+
+	a := tracer.NewChan[int](0)
+	b := tracer.NewChan[int](0)
+	c := tracer.NewChan[int](0)
+	d := tracer.NewChan[int](0)
+
+	tracer.Spawn(func() { x.Send(1); a.Send(0) })
+	tracer.Spawn(func() { x.Receive(); x.Send(2); b.Send(0) })
+	tracer.Spawn(func() { y.Send("a"); x.Receive(); c.Send(0) })
+	tracer.Spawn(func() { y.Receive(); d.Send(0) })
+
+	select {
+	case <-a.GetChan():
+		println("a")
+	case <-b.GetChan():
+		println("b")
+	case <-c.GetChan():
+		println("c")
+	case <-d.GetChan():
+		println("d")
+	}
+
+	time.Sleep(2 * time.Second)
+	tracer.PrintTrace()
+}
+*/
+
+/*
+func run() {
+	fmt.Println("run")
+}
+
+func runArg(args ...any) {
+	var a int = args[0].(int)
+	var b string = args[1].(string)
+	fmt.Println("runArg: ", a, b)
+}
+
+func runArgs(args1 ...any) {
+	var i int = args1[0].(int)
+	var args []any = args1[1:]
+	fmt.Print("runArgs: ", i, " ")
+	for _, i := range args {
+		fmt.Print(i, " ")
+	}
+}
+*/
+
+/*
+func get_i(i int) int {
+	return i
+}
+
+func run() <-chan struct{} {
+
+}
+
+func runArg(a int, b string, c int) {
+	fmt.Println("runArg: ", a, b, c)
+}
+
+func runArgs(i int, s ...string) {
+	fmt.Print("runArgs: ", i, " ")
+	for _, i := range s {
+		fmt.Print(i, " ")
+	}
+	fmt.Println("")
+}
+
+func func_in_func(f func(i int)) {}
+
+func main() {
+	func_in_func(func(x int) {})
+	ex := []any{1, 2, 3}
+	var args []int
+	for _, a := range ex[1:] {
+		args = append(args, a.(int))
+	}
+	fmt.Println(args)
+
+	i := 0
+
+	x := make(chan int, 0)
+	y := make(chan string, 0)
+
+	a := make(chan int, 0)
+	b := make(chan int, 0)
+	c := make(chan int, 0)
+	d := make(chan int, 0)
+
+	// go run()
+	// go runArg(1, "a", 1)
+	// go runArgs(1, "a", "b")
+	go func(c int, d string) { x <- i; a <- 1; fmt.Println(c, d) }(3, "a")
+	go func() { <-x; x <- 1; b <- get_i(1) }()
+	go func() { y <- "4"; <-x; c <- 5 }()
+	go func() { i := <-y; d <- 6; ; println(i) }()
+
+	select {
+	case <-a:
+		println("a")
+	case <-b:
+		println("b")
+	case <-c:
+		println("c")
+	case <-d:
+		println("d")
+	default:
+		println("default")
+	}
+
+	time.Sleep(2 * time.Second)
+}
+*/
+
+/*
+func get_chan(x int) chan int {
+	c := make(chan int)
+	return c
+}
+
+func main() {
+	a := make(chan int)
+	b := make(chan int)
+
+	select {
+	case <-a:
+		fmt.Println("1")
+	case x := <-b:
+		fmt.Println(x)
+	case <-get_chan(3):
+		fmt.Println("c")
+		// case y := <-get_chan():
+		// 	fmt.Println(y)
+	}
+}
+*/
+
+// func get_i(i int) int {
+// 	return i
+// }
+
+// func func1(y chan string, x chan int) {
+// 	y <- "1"
+// 	<-x
+// }
+
 func func1(x chan int, i int) {
 	x <- 1
 }
@@ -33,22 +194,13 @@ func main() {
 
 	go func1(x, i)
 	go func() {
-		f.Lock()
-		g.Lock()
-		g.Unlock()
-		f.Unlock()
 		<-x
 		x <- 1
 	}()
-	go func(w chan int, i int) {
-		g.Lock()
-		f.Lock()
-		f.Unlock()
-		g.Unlock()
+	go func(i int) {
 		y <- 1
 		<-x
-		w <- i
-	}(b, i)
+	}(i)
 	go func() { <-y }()
 
 	time.Sleep(1 * time.Second)
@@ -78,16 +230,12 @@ In our case we get
 package main
 
 import (
-	"sync"
 	"time"
+
 	"github.com/ErikKassubek/GoChan/tracer"
 )
 
-func func1(gochanTracerArg ...any,) {
-	x := gochanTracerArg[0].(*tracer.Chan[int])
-	_ = x
-	i := gochanTracerArg[1].(int)
-	_ = i
+func func1(x tracer.Chan[int], i int) {
 	x.Send(1)
 
 }
@@ -102,39 +250,55 @@ func main() {
 	c := tracer.NewChan[string](0)
 
 	i := 3
-	tracer.Spawn(func1, &x, i)
-	tracer.Spawn(func(gochanTracerArg ...any) {
-		f.Lock()
-		g.Lock()
-		g.Unlock()
-		f.Unlock()
-		x.Receive()
-		x.Send(1)
+	func() {
+		GoChanRoutineIndex := tracer.SpawnPre()
+		go func() {
+			tracer.SpawnPost(GoChanRoutineIndex)
+			{
 
-	})
-	tracer.Spawn(func(gochanTracerArg ...any) {
-		var w *tracer.Chan[int] = gochanTracerArg[0].(*tracer.Chan[int])
-		var i int = gochanTracerArg[1].(int)
-		g.Lock()
-		f.Lock()
-		f.Unlock()
-		g.Unlock()
-		y.Send(1)
-		x.Receive()
-		w.Send(i)
-
-	}, &b, i)
-	tracer.Spawn(func(gochanTracerArg ...any) { y.Receive() })
+				func1(x, i)
+			}
+		}()
+	}()
+	func() {
+		GoChanRoutineIndex := tracer.SpawnPre()
+		go func() {
+			tracer.SpawnPost(GoChanRoutineIndex)
+			{
+				x.Receive()
+				x.Send(1)
+			}
+		}()
+	}()
+	func() {
+		GoChanRoutineIndex := tracer.SpawnPre()
+		go func(i int) {
+			tracer.SpawnPost(GoChanRoutineIndex)
+			{
+				y.Send(1)
+				x.Receive()
+			}
+		}(i)
+	}()
+	func() {
+		GoChanRoutineIndex := tracer.SpawnPre()
+		go func() {
+			tracer.SpawnPost(GoChanRoutineIndex)
+			{
+				y.Receive()
+			}
+		}()
+	}()
 
 	time.Sleep(1 * time.Second)
 	{
-		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId())
+		tracer.PreSelect(true, b.GetId(), c.GetId())
 
 		select {
 		case x_sel := <-a.GetChan():
-			x := x_sel.getInfo()
+			x := x_sel.GetInfo()
 			a.PostSelect()
-			println("a")
+			println(x)
 		case <-b.GetChan():
 			b.PostSelect()
 			println("b")
@@ -150,7 +314,6 @@ func main() {
 	time.Sleep(2 * time.Second)
 	tracer.PrintTrace()
 }
-
 ```
 After installing the tracer library with 
 ``` 
@@ -158,9 +321,9 @@ go get github.com/ErikKassubek/GoChan/tracer
 ```
 in ./output/fold/, we can run the translated project and get the following trace:
 ```
-[signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5?, default), post(4, 3, 4?)]
+[signal(2), signal(3), signal(4), signal(5), pre(4?, 5?, default), post(default)]
 [wait(2), pre(1!), post(2, 1, 1!)]
 [wait(3), pre(1?), post(2, 1, 1?), pre(1!), post(3, 2, 1!)]
-[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?), pre(4!), post(4, 3, 4!)]
+[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?)]
 [wait(5), pre(2?), post(4, 1, 2?)]
 ```
