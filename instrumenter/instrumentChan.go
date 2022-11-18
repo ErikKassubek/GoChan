@@ -242,7 +242,7 @@ func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c 
 		return
 	}
 
-	variable := n.Lhs[0].(*ast.Ident).Name
+	variable := get_name(astSet, n.Lhs[0])
 	channel := get_name(astSet, n.Rhs[0].(*ast.UnaryExpr).X)
 
 	token := n.Tok
