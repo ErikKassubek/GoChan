@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"math/rand"
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -280,21 +281,8 @@ func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 		case *ast.ChanType:
 			// get type of channel
 
-			var chanType string
 			callExpVal := callExp.Args[0].(*ast.ChanType).Value
-			switch val := callExpVal.(type) {
-			case *ast.Ident:
-				chanType = val.Name
-			case *ast.StructType:
-				var struct_elem string
-				for i, elem := range val.Fields.List {
-					struct_elem += elem.Names[0].Name + " " + elem.Type.(*ast.Ident).Name
-					if i == len(val.Fields.List)-1 {
-						struct_elem += ", "
-					}
-				}
-				chanType = "struct{" + struct_elem + "}"
-			}
+			chanType := get_name(astSet, callExpVal)
 
 			// set size of channel
 			chanSize := "0"
@@ -346,7 +334,7 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 	case *ast.CompositeLit:
 		switch lit_type := lit.Type.(type) {
 		case *ast.StructType:
-			value = "switch{}{}"
+			value = "struct{}{}"
 		case *ast.ArrayType:
 			value = "[]" + get_name(astSet, lit_type.Elt) + "{" + get_name(astSet, lit.Elts[0]) + "}"
 		}
@@ -661,13 +649,15 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			f.X.(*ast.Ident).Name = "<-" + name
 			f.Sel.Name = "GetChan"
 
-		case *ast.AssignStmt: // receive with assign (:=)
-			assign_name := get_name(astSet, c_type.Lhs[0])
+		case *ast.AssignStmt: // receive with assign
+			assign_name := "sel_" + randStr(10)
+			assigned_name := get_name(astSet, c_type.Lhs[0])
 			f := c_type.Rhs[0]
 			name = strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")[0]
+			token := c_type.Tok
 
 			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Lhs[0] = &ast.Ident{
-				Name: assign_name + "_sel",
+				Name: assign_name,
 			}
 			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Rhs[0] = &ast.SelectorExpr{
 				X: &ast.Ident{
@@ -681,14 +671,14 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 				&ast.AssignStmt{
 					Lhs: []ast.Expr{
 						&ast.Ident{
-							Name: assign_name,
+							Name: assigned_name,
 						},
 					},
-					Tok: token.DEFINE,
+					Tok: token,
 					Rhs: []ast.Expr{
 						&ast.SelectorExpr{
 							X: &ast.Ident{
-								Name: assign_name + "_sel",
+								Name: assign_name,
 							},
 							Sel: &ast.Ident{
 								Name: "GetInfo()",
@@ -801,7 +791,14 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 	case *ast.ChanType:
 		return "chan " + get_name(astSet, n_type.Value)
 	case *ast.StructType:
-		return "struct{}"
+		var struct_elem string
+		for i, elem := range n_type.Fields.List {
+			struct_elem += elem.Names[0].Name + " " + elem.Type.(*ast.Ident).Name
+			if i == len(n_type.Fields.List)-1 {
+				struct_elem += ", "
+			}
+		}
+		return "struct{" + struct_elem + "}"
 	case *ast.IndexExpr:
 		return get_name(astSet, n_type.X) + "[" + get_name(astSet, n_type.Index) + "]"
 	case *ast.BinaryExpr:
@@ -827,4 +824,14 @@ func get_selector_expression_name(n *ast.SelectorExpr) string {
 		return get_selector_expression_name(x) + "." + n.Sel.Name
 	}
 	return ""
+}
+
+// get random string of length n
+func randStr(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
