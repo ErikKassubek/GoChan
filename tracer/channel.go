@@ -36,6 +36,11 @@ type Message[T any] struct {
 	senderTimestamp int
 }
 
+// create a message object
+func BuildMessage[T any](info T, sender int, senderTimestamp int) Message[T] {
+	return Message[T]{info: info, sender: sender, senderTimestamp: senderTimestamp}
+}
+
 // get message info
 func (m *Message[T]) GetInfo() T {
 	return m.info
