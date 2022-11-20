@@ -40,16 +40,23 @@ func PreSelect(def bool, channels ...int) {
 }
 
 // add at begging of select block
-func (ch *Chan[T]) PostSelect() {
+func (ch *Chan[T]) PostSelect(receive bool, message Message[T]) {
 	index := getIndex()
 	counter[index]++
 
-	res := <-ch.c
-
-	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: res.sender, timestamp: res.senderTimestamp})
-	tracesLock.Unlock()
+	if receive {
+		tracesLock.Lock()
+		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
+			SenderId: message.sender, timestamp: message.senderTimestamp})
+		tracesLock.Unlock()
+	} else {
+		tracesLock.Lock()
+		counterLock.RLock()
+		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
+			SenderId: index, timestamp: counter[index]})
+		counterLock.RUnlock()
+		tracesLock.Unlock()
+	}
 }
 
 // add to default statement of select
