@@ -97,7 +97,7 @@ func instrument_go_file(file_path string) error {
 	// get the ASP of the file
 	astSet := token.NewFileSet()
 
-	f, err := parser.ParseFile(astSet, file_path, nil, parser.ParseComments)
+	f, err := parser.ParseFile(astSet, file_path, nil, 0)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not parse file %s\n", file_path)
 		return err

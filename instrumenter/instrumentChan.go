@@ -64,9 +64,7 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 
 		switch n := n.(type) {
 		case *ast.GenDecl: // add import of tracer lib if other libs get imported
-			if n.Tok == token.IMPORT {
-
-			}
+			instrument_gen_decl(astSet, n, c)
 		case *ast.AssignStmt: // handle assign statements
 			switch n.Rhs[0].(type) {
 			case *ast.CallExpr: // call expression
@@ -158,6 +156,36 @@ func add_show_trace_call(n *ast.FuncDecl) {
 	})
 }
 
+func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Cursor) {
+	for i, s := range n.Specs {
+		switch s_type := s.(type) {
+		case *ast.ValueSpec:
+			switch t_type := s_type.Type.(type) {
+			case *ast.ChanType:
+				type_val := get_name(astSet, t_type.Value)
+				n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
+					Name: "tracer.Chan[" + type_val + "]",
+				}
+			}
+		case *ast.TypeSpec:
+			switch s_type_type := s_type.Type.(type) {
+			case *ast.StructType:
+				for j, t := range s_type_type.Fields.List {
+					switch t_type := t.Type.(type) {
+					case *ast.ChanType:
+						type_val := get_name(astSet, t_type.Value)
+						n.Specs[i].(*ast.TypeSpec).Type.(*ast.StructType).Fields.List[j].Type = &ast.Ident{
+							Name: "tracer.Chan[" + type_val + "]",
+						}
+					}
+				}
+
+			}
+
+		}
+	}
+}
+
 func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c *astutil.Cursor) {
 	instrument_function_declaration_return_values(astSet, n.Type)
 
@@ -183,14 +211,8 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 		}
 
 		translated_string := ""
-		switch v := res.Type.(*ast.ChanType).Value.(type) {
-		case *ast.Ident: // chan <type>
-			translated_string = "tracer.Chan[" + v.Name + "]"
-		case *ast.StructType:
-			translated_string = "tracer.Chan[struct{}]"
-		case *ast.ArrayType:
-			translated_string = "tracer.Chan[[]" + v.Elt.(*ast.Ident).Name + "]"
-		}
+		name := get_name(astSet, res.Type.(*ast.ChanType).Value)
+		translated_string = "tracer.Chan[" + name + "]"
 
 		// set the translated value
 		n.Results.List[i] = &ast.Field{
@@ -611,8 +633,13 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 	// collect cases and replace <-i with i.GetChan()
 	caseNodes := n.Body.List
 	cases := make([]string, 0)
+	cases_receive := make([]string, 0)
 	d := false // check weather select contains default
-	for _, c := range caseNodes {
+	sendVar := make([]struct {
+		assign_name string
+		message     string
+	}, 0)
+	for i, c := range caseNodes {
 		// only look at communication cases
 		switch c.(type) {
 		case *ast.CommClause:
@@ -635,37 +662,69 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 		}
 
 		var name string
+		var assign_name string
+		var rec string
+
 		switch c_type := c.(*ast.CommClause).Comm.(type) {
 		case *ast.ExprStmt: // receive in switch without assign
 			f := c_type.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr)
 
-			// check for receive
-			if f.Sel.Name != "Receive" {
+			if f.Sel.Name == "Receive" {
+				name = get_name(astSet, f.X)
+				cases = append(cases, name)
+				assign_name = "sel_" + randStr(8)
+				cases_receive = append(cases_receive, "true")
+				rec = "true"
+
+				n.Body.List[i].(*ast.CommClause).Comm.(*ast.ExprStmt).X = &ast.CallExpr{
+					Fun: &ast.Ident{
+						Name: assign_name + ":=<-" + name + ".GetChan",
+					},
+				}
+			} else if f.Sel.Name == "Send" {
+				name = get_name(astSet, f.X)
+				cases = append(cases, name)
+
+				assign_name = "sel_" + randStr(8)
+				cases_receive = append(cases_receive, "false")
+				rec = "false"
+
+				arg_val := get_name(astSet, c_type.X.(*ast.CallExpr).Args[0])
+				sendVar = append(sendVar, struct {
+					assign_name string
+					message     string
+				}{assign_name, arg_val})
+
+				n.Body.List[i].(*ast.CommClause).Comm.(*ast.ExprStmt).X = &ast.Ident{
+					Name: name + ".GetChan() <-" + assign_name,
+				}
+			} else {
 				continue
 			}
-			name = f.X.(*ast.Ident).Name
-			cases = append(cases, name)
-
-			f.X.(*ast.Ident).Name = "<-" + name
-			f.Sel.Name = "GetChan"
 
 		case *ast.AssignStmt: // receive with assign
-			assign_name := "sel_" + randStr(10)
+			assign_name = "sel_" + randStr(10)
 			assigned_name := get_name(astSet, c_type.Lhs[0])
+			cases_receive = append(cases_receive, "true")
+			rec = "true"
+
 			f := c_type.Rhs[0]
-			name = strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")[0]
-			token := c_type.Tok
+			names := strings.Split(f.(*ast.CallExpr).Fun.(*ast.Ident).Name, ".")
+			for i, n := range names {
+				if i != len(names)-1 {
+					name += n + "."
+				}
+			}
+
+			name = strings.TrimSuffix(name, ".")
+			cases = append(cases, name)
 
 			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Lhs[0] = &ast.Ident{
 				Name: assign_name,
 			}
-			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Rhs[0] = &ast.SelectorExpr{
-				X: &ast.Ident{
-					Name: "<-" + name,
-				},
-				Sel: &ast.Ident{
-					Name: "GetChan()",
-				},
+
+			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Rhs[0] = &ast.Ident{
+				Name: "<-" + name + ".GetChan()",
 			}
 			c.(*ast.CommClause).Body = append([]ast.Stmt{
 				&ast.AssignStmt{
@@ -674,7 +733,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 							Name: assigned_name,
 						},
 					},
-					Tok: token,
+					Tok: c_type.Tok,
 					Rhs: []ast.Expr{
 						&ast.SelectorExpr{
 							X: &ast.Ident{
@@ -687,20 +746,14 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 					},
 				},
 			}, c.(*ast.CommClause).Body...)
+			c.(*ast.CommClause).Comm.(*ast.AssignStmt).Tok = token.DEFINE
 		}
 
 		// add post select
 		c.(*ast.CommClause).Body = append([]ast.Stmt{
 			&ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun: &ast.SelectorExpr{
-						X: &ast.Ident{
-							Name: name,
-						},
-						Sel: &ast.Ident{
-							Name: "PostSelect",
-						},
-					},
+				X: &ast.Ident{
+					Name: name + ".PostSelect(" + rec + ", " + assign_name + ")",
 				},
 			},
 		}, c.(*ast.CommClause).Body...)
@@ -712,32 +765,46 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 		cases_string = "true, "
 	}
 	for i, c := range cases {
-		cases_string += (c + ".GetId()")
+		cases_string += (c + ".GetIdPre(" + cases_receive[i] + ")")
 		if i != len(cases)-1 {
 			cases_string += ", "
 		}
 	}
 
-	// add tracer.PreSelect
-	cur.Replace(
-		&ast.BlockStmt{
-			List: []ast.Stmt{
-				&ast.ExprStmt{
-					X: &ast.CallExpr{
-						Fun: &ast.Ident{
-							Name: "tracer.PreSelect",
-						},
-						Args: []ast.Expr{
-							&ast.Ident{
-								Name: cases_string,
-							},
+	// add sender variable definitions
+	// cur.Replace() and preselect
+	block := &ast.BlockStmt{
+		List: []ast.Stmt{
+			&ast.ExprStmt{
+				X: &ast.CallExpr{
+					Fun: &ast.Ident{
+						Name: "tracer.PreSelect",
+					},
+					Args: []ast.Expr{
+						&ast.Ident{
+							Name: cases_string,
 						},
 					},
 				},
-				n,
 			},
 		},
-	)
+	}
+
+	for _, c := range sendVar {
+		block.List = append(block.List, &ast.AssignStmt{
+			Lhs: []ast.Expr{
+				&ast.Ident{Name: c.assign_name},
+			},
+			Tok: token.DEFINE,
+			Rhs: []ast.Expr{
+				&ast.Ident{Name: "tracer.BuildMessage(" + c.message + ")"},
+			},
+		})
+	}
+
+	block.List = append(block.List, n)
+
+	cur.Replace(block)
 }
 
 // get name
