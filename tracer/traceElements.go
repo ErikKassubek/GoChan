@@ -94,14 +94,18 @@ func (tc *TraceClose) PrintElement() {
 
 // type for pre select event
 type TracePreSelect struct {
-	chanIds []int
+	chanIds []PreObj
 	def     bool // true if select has default case
 }
 
 func (tps *TracePreSelect) PrintElement() {
 	fmt.Printf("pre(")
-	for i, id := range tps.chanIds {
-		fmt.Printf("%d?", id+1)
+	for i, c := range tps.chanIds {
+		if c.receive {
+			fmt.Printf("%d?", c.id+1)
+		} else {
+			fmt.Printf("%d!", c.id+1)
+		}
 		if i != len(tps.chanIds)-1 {
 			fmt.Printf(", ")
 		}

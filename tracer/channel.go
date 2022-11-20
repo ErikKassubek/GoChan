@@ -37,8 +37,12 @@ type Message[T any] struct {
 }
 
 // create a message object
-func BuildMessage[T any](info T, sender int, senderTimestamp int) Message[T] {
-	return Message[T]{info: info, sender: sender, senderTimestamp: senderTimestamp}
+func BuildMessage[T any](info T) Message[T] {
+	index := getIndex()
+	counterLock.RLock()
+	timeStamp := counter[index]
+	counterLock.RUnlock()
+	return Message[T]{info: info, sender: index, senderTimestamp: timeStamp}
 }
 
 // get message info
@@ -68,6 +72,16 @@ func (ch *Chan[T]) GetChan() chan Message[T] {
 // get the id of the channel
 func (ch *Chan[T]) GetId() int {
 	return ch.id
+}
+
+type PreObj struct {
+	id      int
+	receive bool
+}
+
+// get an object containing the id and send/receive
+func (ch *Chan[T]) GetIdPre(receive bool) PreObj {
+	return PreObj{id: ch.id, receive: receive}
 }
 
 // drop in replacement for sending val on channel c

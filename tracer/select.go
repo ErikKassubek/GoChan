@@ -30,9 +30,11 @@ Drop in replacements for select
 
 // add before select,
 // def is true if the select has a default path
-func PreSelect(def bool, channels ...int) {
+func PreSelect(def bool, channels ...PreObj) {
 	index := getIndex()
+	counterLock.Lock()
 	counter[index]++
+	counterLock.Unlock()
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePreSelect{channels, def})
@@ -42,7 +44,9 @@ func PreSelect(def bool, channels ...int) {
 // add at begging of select block
 func (ch *Chan[T]) PostSelect(receive bool, message Message[T]) {
 	index := getIndex()
+	counterLock.Lock()
 	counter[index]++
+	counterLock.Unlock()
 
 	if receive {
 		tracesLock.Lock()
@@ -51,10 +55,10 @@ func (ch *Chan[T]) PostSelect(receive bool, message Message[T]) {
 		tracesLock.Unlock()
 	} else {
 		tracesLock.Lock()
-		counterLock.RLock()
+		counterLock.Lock()
 		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
 			SenderId: index, timestamp: counter[index]})
-		counterLock.RUnlock()
+		counterLock.Unlock()
 		tracesLock.Unlock()
 	}
 }
@@ -62,7 +66,9 @@ func (ch *Chan[T]) PostSelect(receive bool, message Message[T]) {
 // add to default statement of select
 func PostDefault() {
 	index := getIndex()
+	counterLock.Lock()
 	counter[index]++
+	counterLock.Unlock()
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceDefault{})
