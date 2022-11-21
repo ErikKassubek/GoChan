@@ -155,7 +155,7 @@ func (tl *TraceLock) PrintElement() {
 	} else {
 		p_elem += "0"
 	}
-	fmt.Printf("postLock(%d, %s)", tl.lockId, p_elem)
+	fmt.Printf("lock(%d, %s)", tl.lockId, p_elem)
 }
 
 type TraceUnlock struct {
@@ -163,5 +163,5 @@ type TraceUnlock struct {
 }
 
 func (tu *TraceUnlock) PrintElement() {
-	fmt.Printf("Unlock(%d)", tu.lockId)
+	fmt.Printf("unlock(%d)", tu.lockId)
 }
