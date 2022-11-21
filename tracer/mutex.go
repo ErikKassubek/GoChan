@@ -71,6 +71,8 @@ func (m *Mutex) t_Lock(try bool) bool {
 	res := false
 	if try {
 		res = m.mu.TryLock()
+	} else {
+		m.mu.Lock()
 	}
 
 	tracesLock.Lock()
