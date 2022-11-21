@@ -1,6 +1,8 @@
 package tracer
 
-import "fmt"
+import (
+	"fmt"
+)
 
 /*
 Copyright (c) 2022, Erik Kassubek
@@ -29,6 +31,13 @@ Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 traceElements.go
 Type declarations for the trace elements
 */
+
+// interface for a trace element
+type TraceElement interface {
+	PrintElement()
+}
+
+// ==================== Channel =====================
 
 // type for the signal element
 type TraceSignal struct {
@@ -124,7 +133,35 @@ func (td *TraceDefault) PrintElement() {
 	fmt.Printf("post(default)")
 }
 
-// interface for a trace element
-type TraceElement interface {
-	PrintElement()
+// ==================== Mutex =====================
+
+type TraceLock struct {
+	lockId int
+	try    bool
+	read   bool
+	suc    bool
+}
+
+func (tl *TraceLock) PrintElement() {
+	p_elem := ""
+	if tl.try {
+		p_elem += "t, "
+	}
+	if tl.read {
+		p_elem += "r, "
+	}
+	if tl.suc {
+		p_elem += "1"
+	} else {
+		p_elem += "0"
+	}
+	fmt.Printf("postLock(%d, %s)", tl.lockId, p_elem)
+}
+
+type TraceUnlock struct {
+	lockId int
+}
+
+func (tu *TraceUnlock) PrintElement() {
+	fmt.Printf("Unlock(%d)", tu.lockId)
 }
