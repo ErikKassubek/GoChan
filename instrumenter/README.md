@@ -15,7 +15,7 @@ cd instrumenter
 go build
 cd ..
 
-./instrumenter/instrumenter -chan -in=[input_folder] <-out=[outout_folder]> <-show_trace>
+./instrumenter/instrumenter -chan -mut -in=[input_folder] <-out=[outout_folder]> <-show_trace>
 ```
 The tags -out and -show trace are not mandatory.
 The translated files can be found in [output_folder] or ./output, if out was not specified.
