@@ -42,7 +42,7 @@ type Mutex struct {
 }
 
 // create mutex
-func NewMutex() *Mutex {
+func NewLock() *Mutex {
 	numberOfMutexLock.Lock()
 	m := Mutex{mu: &sync.Mutex{}, id: numberOfMutex}
 	numberOfMutex++
@@ -96,7 +96,7 @@ func (m *Mutex) Unlock() {
 }
 
 // create RWutex
-func NewRwMutex() *RWMutex {
+func NewRwLock() *RWMutex {
 	numberOfMutexLock.Lock()
 	m := RWMutex{mu: &sync.RWMutex{}, id: numberOfMutex}
 	numberOfMutex++
