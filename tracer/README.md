@@ -216,10 +216,10 @@ The elements have the following meaning:
 |pre(i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
 |pre(i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
 |post(default)|The switch statement has executed and chosen the default case.|
-|lock(i, j, l)| The lock with id i has tried to lock. l is 1 if the lock was successful (e.g. with TryLock). j can be "t", "r", "tr" or "-". "t" shows, that the lock operation was a try-lock operation. "r" shows, that it was an r-lock operation. "tr" shows, that it was a try-r-operation".|
+|lock(i, j, l)|The lock with id i has tried to lock. l is 1 if the lock was successful, 0 if it was not (e.g. with TryLock). j can be "t", "r", "tr" or "-". "t" shows, that the lock operation was a try-lock operation. "r" shows, that it was an r-lock operation. "tr" shows, that it was a try-r-operation".|
+|unlock(i)|The lock with id i was unlocked.|
 
 
- 
 ## References 
 [1] [M. Sulzmann and K. Stadtmüller, “Two-phase dynamic analysis of message-passing
 go programs based on vector clocks,” CoRR, vol. abs/1807.03585, 2018.](https://arxiv.org/abs/1807.03585)
