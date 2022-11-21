@@ -21,6 +21,7 @@ package main
 
 import (
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,7 @@ func func1(x chan int) {
 }
 
 func test() {
+
 	x := make(chan int)
 	y := make(chan int)
 
@@ -36,20 +38,31 @@ func test() {
 	b := make(chan int, 0)
 	c := make(chan string, 0)
 
+	var l sync.Mutex
+	var m sync.RWMutex
+
 	i := 3
 
 	go func1(x)
 	go func() {
+		m.Lock()
 		<-x
 		x <- rand.Intn(100)
+		m.Unlock()
 	}()
 	go func(i int) {
+		l.Lock()
 		y <- i
 		<-x
+		l.Unlock()
 	}(i)
 	go func() {
+		m.RLock()
 		<-y
+		m.RUnlock()
 	}()
+
+	time.Sleep(1 * time.Second)
 
 	select {
 	case x := <-a:
@@ -90,12 +103,16 @@ func func1(x tracer.Chan[int]) {
 }
 
 func test() {
+
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
 	a := tracer.NewChan[int](1)
 	b := tracer.NewChan[int](0)
 	c := tracer.NewChan[string](0)
+
+	l := tracer.NewLock()
+	m := tracer.NewRWLock()
 
 	i := 3
 
@@ -115,8 +132,10 @@ func test() {
 		go func() {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				m.Lock()
 				x.Receive()
 				x.Send(rand.Intn(100))
+				m.Unlock()
 			}
 		}()
 	}()
@@ -126,8 +145,11 @@ func test() {
 		go func(i int) {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				l.Lock()
 				y.Send(i)
 				x.Receive()
+
+				l.Unlock()
 			}
 		}(i)
 	}()
@@ -137,11 +159,16 @@ func test() {
 		go func() {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				m.RLock()
 				y.Receive()
+
+				m.RUnlock()
 			}
 		}()
 	}()
-	
+
+	time.Sleep(1 * time.Second)
+
 	{
 		tracer.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
 		sel_HctcuAxh := tracer.BuildMessage("3")
@@ -166,16 +193,18 @@ func test() {
 
 func main() {
 	tracer.Init()
+	defer tracer.PrintTrace()
+
 	test()
+
 	time.Sleep(4 * time.Second)
-	tracer.PrintTrace()
 }
 ```
 We can now run the translated project and get the following trace:
 ```
-[signal(2), signal(3), signal(4), signal(5), pre(4?, 5?, default), post(default)]
+[signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5!, default), post(default)]
 [wait(2), pre(1!), post(2, 1, 1!)]
-[wait(3), pre(1?), post(2, 1, 1?), pre(1!), post(3, 2, 1!)]
-[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?)]
-[wait(5), pre(2?), post(4, 1, 2?)]
+[wait(3), lock(2, 1), pre(1?)]
+[wait(4), lock(1, 1), pre(2!), post(4, 2, 2!), pre(1?), post(2, 1, 1?), unlock(1)]
+[wait(5), lock(2, r, 1), pre(2?), post(4, 2, 2?), unlock(2)]
 ```

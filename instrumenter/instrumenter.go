@@ -108,9 +108,10 @@ func instrument_go_file(file_path string) error {
 	if instrumentChan {
 		instrument_chan(astSet, f)
 	}
-	// if instrumentMutex {
-	// 	instrument_mutex(astSet, f)
-	// }
+
+	if instrumentMutex {
+		instrument_mutex(astSet, f)
+	}
 
 	// print changed ast to output file
 	output_file, err := os.OpenFile(out+file_path, os.O_WRONLY, os.ModePerm)
