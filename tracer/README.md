@@ -6,7 +6,7 @@
 
 ## What?
 GoChan-Tracer implements drop in replacements for channel operations in Go.
-Those replacements can be used to create a trace of the executed program as described in [1]. 
+Those replacements can be used to create a trace of the executed program similar to the trace described in [1]. 
 
 ## Installation
 ```
@@ -21,14 +21,17 @@ Let's look at the following code:
 package main
 
 import (
+	"math/rand"
+	"sync"
 	"time"
 )
 
-func func1(x chan int, i int) {
-	x <- 1
+func func1(x chan int) {
+	x <- rand.Intn(100)
 }
 
-func main() {
+func test() {
+
 	x := make(chan int)
 	y := make(chan int)
 
@@ -36,18 +39,29 @@ func main() {
 	b := make(chan int, 0)
 	c := make(chan string, 0)
 
+	var l sync.Mutex
+	var m sync.RWMutex
+
 	i := 3
 
-	go func1(x, i)
+	go func1(x)
 	go func() {
+		m.Lock()
 		<-x
-		x <- 1
+		x <- rand.Intn(100)
+		m.Unlock()
 	}()
 	go func(i int) {
+		l.Lock()
 		y <- i
 		<-x
+		l.Unlock()
 	}(i)
-	go func() { <-y }()
+	go func() {
+		m.RLock()
+		<-y
+		m.RUnlock()
+	}()
 
 	time.Sleep(1 * time.Second)
 
@@ -56,37 +70,44 @@ func main() {
 		println(x)
 	case <-b:
 		println("b")
-	case <-c:
+	case c <- "3":
 		println("c")
 	default:
-		print("default")
+		println("default")
 	}
-
-	time.Sleep(5 * time.Second)
 }
 
+func main() {
+	test()
+	time.Sleep(4 * time.Second)
+}
 ```
 By the [instrumenter](https://github.com/ErikKassubek/GoChan/tree/main/instrumenter) it gets translated into
 ```
 package main
 
 import (
-	"github.com/ErikKassubek/GoChan/tracer"
+	"math/rand"
 	"time"
+
+	"github.com/ErikKassubek/GoChan/tracer"
 )
 
-func func1(x tracer.Chan[int], i int) {
-	x.Send(1)
+func func1(x tracer.Chan[int]) {
+	x.Send(rand.Intn(100))
 }
 
-func main() {
-	tracer.Init()
+func test() {
+
 	x := tracer.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
 	a := tracer.NewChan[int](1)
 	b := tracer.NewChan[int](0)
 	c := tracer.NewChan[string](0)
+
+	l := tracer.NewLock()
+	m := tracer.NewRWLock()
 
 	i := 3
 
@@ -95,7 +116,8 @@ func main() {
 		go func() {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
-				func1(x, i)
+
+				func1(x)
 			}
 		}()
 	}()
@@ -105,8 +127,10 @@ func main() {
 		go func() {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				m.Lock()
 				x.Receive()
-				x.Send(1)
+				x.Send(rand.Intn(100))
+				m.Unlock()
 			}
 		}()
 	}()
@@ -116,8 +140,11 @@ func main() {
 		go func(i int) {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				l.Lock()
 				y.Send(i)
 				x.Receive()
+
+				l.Unlock()
 			}
 		}(i)
 	}()
@@ -127,43 +154,54 @@ func main() {
 		go func() {
 			tracer.SpawnPost(GoChanRoutineIndex)
 			{
+				m.RLock()
 				y.Receive()
+
+				m.RUnlock()
 			}
 		}()
 	}()
 
 	time.Sleep(1 * time.Second)
+
 	{
-		tracer.PreSelect(true, a.GetId(), b.GetId(), c.GetId())
+		tracer.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
+		sel_HctcuAxh := tracer.BuildMessage("3")
 
 		select {
-		case x_sel := <-a.GetChan():
-			x := x_sel.GetInfo()
-			a.PostSelect()
+		case sel_XVlBzgbaiC := <-a.GetChan():
+			a.PostSelect(true, sel_XVlBzgbaiC)
+			x := sel_XVlBzgbaiC.GetInfo()
 			println(x)
-		case <-b.GetChan():
-			b.PostSelect()
+		case sel_MRAjWwhT := <-b.GetChan():
+			b.PostSelect(true, sel_MRAjWwhT)
 			println("b")
-		case <-c.GetChan():
-			c.PostSelect()
+		case c.GetChan() <- sel_HctcuAxh:
+			c.PostSelect(false, sel_HctcuAxh)
 			println("c")
 		default:
 			tracer.PostDefault()
-			print("default")
+			println("default")
 		}
 	}
-
-	time.Sleep(5 * time.Second)
-	tracer.PrintTrace()
 }
+
+func main() {
+	tracer.Init()
+	defer tracer.PrintTrace()
+
+	test()
+	time.Sleep(4 * time.Second)
+}
+
 ``` 
-By running this program we get the resulting trace as
+By running this program we get the resulting trace. One possible trace is
 ```
-[signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5?, default), post(default)]
+[signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5!, default), post(default)]
 [wait(2), pre(1!), post(2, 1, 1!)]
-[wait(3), pre(1?), post(2, 1, 1?), pre(1!), post(3, 2, 1!)]
-[wait(4), pre(2!), post(4, 1, 2!), pre(1?), post(3, 2, 1?)]
-[wait(5), pre(2?), post(4, 1, 2?)]
+[wait(3), lock(2, 1), pre(1?)]
+[wait(4), lock(1, 1), pre(2!), post(4, 2, 2!), pre(1?), post(2, 1, 1?), unlock(1)]
+[wait(5), lock(2, r, 1), pre(2?), post(4, 2, 2?), unlock(2)]
 ```
 Every line represents a routine (the first line is the main routine).
 The elements have the following meaning:
@@ -178,9 +216,8 @@ The elements have the following meaning:
 |pre(i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
 |pre(i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
 |post(default)|The switch statement has executed and chosen the default case.|
+|lock(i, j, l)| The lock with id i has tried to lock. l is 1 if the lock was successful (e.g. with TryLock). j can be "t", "r", "tr" or "-". "t" shows, that the lock operation was a try-lock operation. "r" shows, that it was an r-lock operation. "tr" shows, that it was a try-r-operation".|
 
-
-A deeper explanation can be found in [1].
 
  
 ## References 

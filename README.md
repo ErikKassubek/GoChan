@@ -200,7 +200,7 @@ func main() {
 	time.Sleep(4 * time.Second)
 }
 ```
-We can now run the translated project and get the following trace:
+We can now run the translated project and get a trace. One possible trace is
 ```
 [signal(2), signal(3), signal(4), signal(5), pre(3?, 4?, 5!, default), post(default)]
 [wait(2), pre(1!), post(2, 1, 1!)]

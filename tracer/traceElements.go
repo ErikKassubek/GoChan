@@ -145,17 +145,21 @@ type TraceLock struct {
 func (tl *TraceLock) PrintElement() {
 	p_elem := ""
 	if tl.try {
-		p_elem += "t, "
+		p_elem += "t"
 	}
 	if tl.read {
-		p_elem += "r, "
+		p_elem += "r"
 	}
+	if p_elem == "" {
+		p_elem = "-"
+	}
+	var suc_elem string
 	if tl.suc {
-		p_elem += "1"
+		suc_elem += "1"
 	} else {
-		p_elem += "0"
+		suc_elem += "0"
 	}
-	fmt.Printf("lock(%d, %s)", tl.lockId+1, p_elem)
+	fmt.Printf("lock(%d, %s, %s)", tl.lockId+1, p_elem, suc_elem)
 }
 
 type TraceUnlock struct {
