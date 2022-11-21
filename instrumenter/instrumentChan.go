@@ -48,10 +48,10 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
-				add_init_call(n)
 				if show_trace {
 					add_show_trace_call(n)
 				}
+				add_init_call(n)
 			} else {
 				instrument_function_declarations(astSet, n, c)
 			}
@@ -71,11 +71,15 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 				instrument_call_expressions(astSet, n)
 			case *ast.UnaryExpr: // receive with assign
 				instrument_receive_with_assign(astSet, n, c)
+			case *ast.CompositeLit: // creation of struct
+				instrument_assign_struct(astSet, n)
 			}
 		case *ast.SendStmt: // handle send messages
 			instrument_send_statement(astSet, n, c)
 		case *ast.ExprStmt: // handle receive and close
 			instrument_expression_statement(astSet, n, c)
+		case *ast.DeferStmt: // handle defer
+			instrument_defer_statement(astSet, n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements
@@ -147,13 +151,26 @@ func add_init_call(n *ast.FuncDecl) {
 
 // add function to show the trace
 func add_show_trace_call(n *ast.FuncDecl) {
-	n.Body.List = append(n.Body.List, &ast.ExprStmt{
-		X: &ast.CallExpr{
-			Fun: &ast.Ident{
-				Name: "tracer.PrintTrace",
+	n.Body.List = append([]ast.Stmt{
+		&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.Ident{
+					Name: "go func() { t := time.NewTimer(10 * time.Second); <- t.C; tracer.PrintTrace()}",
+				},
 			},
 		},
-	})
+	}, n.Body.List...)
+
+	n.Body.List = append([]ast.Stmt{
+		&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.Ident{
+					Name: "defer tracer.PrintTrace",
+				},
+			},
+		},
+	}, n.Body.List...)
+
 }
 
 func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Cursor) {
@@ -284,6 +301,37 @@ func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c 
 			},
 		},
 	})
+}
+
+// instrument creation of struct
+func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
+	for i, t := range n.Rhs[0].(*ast.CompositeLit).Elts {
+		switch t.(*ast.KeyValueExpr).Value.(type) {
+		case *ast.CallExpr:
+		default:
+			continue
+		}
+
+		t_type := t.(*ast.KeyValueExpr).Value.(*ast.CallExpr)
+		if get_name(astSet, t_type.Fun) != "make" {
+			continue
+		}
+
+		switch t_type.Args[0].(type) {
+		case *ast.ChanType:
+		default:
+			continue
+		}
+
+		name := get_name(astSet, t_type.Args[0].(*ast.ChanType).Value)
+		size := "0"
+		if len(t_type.Args) > 1 {
+			size = get_name(astSet, t_type.Args[1])
+		}
+
+		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Fun = &ast.Ident{Name: "tracer.NewChan[" + name + "]"}
+		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Args = []ast.Expr{&ast.Ident{Name: size}}
+	}
 }
 
 // instrument if n is a call expression
@@ -450,6 +498,24 @@ func instrument_expression_statement(astSet *token.FileSet, n *ast.ExprStmt, c *
 		ast.Print(astSet, x_part)
 		errString := fmt.Sprintf("Unknown type %T in instrument_expression_statement", x_part)
 		panic(errString)
+	}
+}
+
+// instrument defer state,emt
+func instrument_defer_statement(astSet *token.FileSet, n *ast.DeferStmt, c *astutil.Cursor) {
+	x_call := n.Call.Fun
+	switch fun_type := x_call.(type) {
+	case *ast.Ident:
+		if fun_type.Name == "close" {
+			name := get_name(astSet, n.Call.Args[0])
+			c.Replace(&ast.DeferStmt{
+				Call: &ast.CallExpr{
+					Fun: &ast.Ident{
+						Name: name + ".Close",
+					},
+				},
+			})
+		}
 	}
 }
 
