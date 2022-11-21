@@ -96,7 +96,7 @@ func (m *Mutex) Unlock() {
 }
 
 // create RWutex
-func NewRwLock() *RWMutex {
+func NewRWLock() *RWMutex {
 	numberOfMutexLock.Lock()
 	m := RWMutex{mu: &sync.RWMutex{}, id: numberOfMutex}
 	numberOfMutex++
