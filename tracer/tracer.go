@@ -31,6 +31,7 @@ Program
 
 import (
 	"sync"
+	"time"
 
 	"github.com/petermattis/goid"
 )
@@ -57,6 +58,8 @@ func Init() {
 	routineIndexLock.Lock()
 	routineIndex[goid.Get()] = 0
 	routineIndexLock.Unlock()
+
+	go func() { t := time.NewTimer(10 * time.Second); <-t.C; tracer.PrintTrace() }()
 }
 
 func PrintTrace() {

@@ -155,16 +155,6 @@ func add_show_trace_call(n *ast.FuncDecl) {
 		&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
-					Name: "go func() { t := time.NewTimer(10 * time.Second); <- t.C; tracer.PrintTrace()}",
-				},
-			},
-		},
-	}, n.Body.List...)
-
-	n.Body.List = append([]ast.Stmt{
-		&ast.ExprStmt{
-			X: &ast.CallExpr{
-				Fun: &ast.Ident{
 					Name: "defer tracer.PrintTrace",
 				},
 			},
