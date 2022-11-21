@@ -68,7 +68,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 	counter[index]++
 	counterLock.RUnlock()
 
-	res := false
+	res := true
 	if try {
 		res = m.mu.TryLock()
 	} else {
