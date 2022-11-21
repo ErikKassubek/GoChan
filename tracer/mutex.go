@@ -32,10 +32,22 @@ mutex.go
 Drop in replacements for (rw)mutex and (Try)(R)lock and (Try)(R-)Unlock
 */
 
+var numberOfMutex int = 0
+var numberOfMutexLock sync.Mutex
+
 // Mutex
 type Mutex struct {
 	mu *sync.Mutex
 	id int
+}
+
+// create mutex
+func NewMutex() *Mutex {
+	numberOfMutexLock.Lock()
+	m := Mutex{mu: &sync.Mutex{}, id: numberOfMutex}
+	numberOfMutex++
+	numberOfMutexLock.Unlock()
+	return &m
 }
 
 // lock a mutex
@@ -81,6 +93,15 @@ func (m *Mutex) Unlock() {
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceUnlock{lockId: m.id})
 	tracesLock.Unlock()
+}
+
+// create RWutex
+func NewRwMutex() *RWMutex {
+	numberOfMutexLock.Lock()
+	m := RWMutex{mu: &sync.RWMutex{}, id: numberOfMutex}
+	numberOfMutex++
+	numberOfMutexLock.Unlock()
+	return &m
 }
 
 // RW-Mutex
