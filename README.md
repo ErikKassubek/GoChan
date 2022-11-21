@@ -208,3 +208,4 @@ We can now run the translated project and get a trace. One possible trace is
 [wait(4), lock(1, 1), pre(2!), post(4, 2, 2!), pre(1?), post(2, 1, 1?), unlock(1)]
 [wait(5), lock(2, r, 1), pre(2?), post(4, 2, 2?), unlock(2)]
 ```
+An explenation of the trace can be found in the [tracer](https://github.com/ErikKassubek/GoChan/tree/main/tracer).
