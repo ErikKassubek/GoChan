@@ -150,8 +150,11 @@ func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.C
 				}
 			case *ast.InterfaceType:
 				for _, t := range s_t_t.Methods.List {
-					instrument_function_declaration_return_values_mut(astSet, t.Type.(*ast.FuncType))
-					instrument_function_declaration_parameter_mut(astSet, t.Type.(*ast.FuncType))
+					switch t_type := t.Type.(type) {
+					case *ast.FuncType:
+						instrument_function_declaration_return_values_mut(astSet, t_type)
+						instrument_function_declaration_parameter_mut(astSet, t_type)
+					}
 				}
 			}
 		}
@@ -159,7 +162,6 @@ func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.C
 }
 
 // change the return value of functions if they contain a mutex
-// FIXME: mutex
 func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n *ast.FuncType) {
 	astResult := n.Results
 
@@ -194,7 +196,6 @@ func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n 
 }
 
 // instrument all function parameter
-// FIXME: mutex
 func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast.FuncType) {
 	astResult := n.Params
 

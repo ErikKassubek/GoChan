@@ -190,8 +190,11 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 				}
 			case *ast.InterfaceType:
 				for _, t := range s_type_type.Methods.List {
-					instrument_function_declaration_return_values(astSet, t.Type.(*ast.FuncType))
-					instrument_function_declaration_parameter(astSet, t.Type.(*ast.FuncType))
+					switch t_type := t.Type.(type) {
+					case *ast.FuncType:
+						instrument_function_declaration_return_values(astSet, t_type)
+						instrument_function_declaration_parameter(astSet, t_type)
+					}
 				}
 			}
 
@@ -879,6 +882,9 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 
 // get name
 func get_name(astSet *token.FileSet, n ast.Expr) string {
+	if n == nil {
+		return ""
+	}
 	switch n_type := n.(type) {
 	case *ast.Ident:
 		return n_type.Name
@@ -930,9 +936,11 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 	case *ast.StructType:
 		var struct_elem string
 		for i, elem := range n_type.Fields.List {
-			struct_elem += elem.Names[0].Name + " " + elem.Type.(*ast.Ident).Name
-			if i == len(n_type.Fields.List)-1 {
-				struct_elem += ", "
+			if len(elem.Names) > 0 {
+				struct_elem += get_name(astSet, elem.Names[0]) + " " + get_name(astSet, elem.Type)
+				if i == len(n_type.Fields.List)-1 {
+					struct_elem += ", "
+				}
 			}
 		}
 		return "struct{" + struct_elem + "}"
