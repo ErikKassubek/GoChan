@@ -42,6 +42,8 @@ import (
 func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 	add_tracer_import(f)
 
+	// ast.Print(astSet, f)
+
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -186,7 +188,11 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 						}
 					}
 				}
-
+			case *ast.InterfaceType:
+				for _, t := range s_type_type.Methods.List {
+					instrument_function_declaration_return_values(astSet, t.Type.(*ast.FuncType))
+					instrument_function_declaration_parameter(astSet, t.Type.(*ast.FuncType))
+				}
 			}
 
 		}
@@ -195,7 +201,6 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 
 func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c *astutil.Cursor) {
 	instrument_function_declaration_return_values(astSet, n.Type)
-
 	instrument_function_declaration_parameter(astSet, n.Type)
 }
 
@@ -296,6 +301,11 @@ func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c 
 // instrument creation of struct
 func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
 	for i, t := range n.Rhs[0].(*ast.CompositeLit).Elts {
+		switch t.(type) {
+		case *(ast.KeyValueExpr):
+		default:
+			continue
+		}
 		switch t.(*ast.KeyValueExpr).Value.(type) {
 		case *ast.CallExpr:
 		default:
@@ -399,13 +409,13 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 			value = "[]" + get_name(astSet, lit_type.Elt) + "{" + get_name(astSet, lit.Elts[0]) + "}"
 		}
 	case *ast.SelectorExpr:
-		value = get_selector_expression_name(lit)
+		value = get_selector_expression_name(astSet, lit)
 	case *ast.UnaryExpr:
 		switch t_type := lit.X.(*ast.CompositeLit).Type.(type) {
 		case *ast.Ident:
 			value = lit.Op.String() + t_type.Name + "{}"
 		case *ast.SelectorExpr:
-			value = lit.Op.String() + get_selector_expression_name(t_type) + "{}"
+			value = lit.Op.String() + get_selector_expression_name(astSet, t_type) + "{}"
 
 		}
 	case *ast.FuncLit:
@@ -518,15 +528,17 @@ func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *ast
 		return
 	}
 
+	// ast.Print(astSet, x_part.X)
+
 	// get channel name
 	var channel string
 	switch x_part_x := x_part.X.(type) {
 	case *ast.Ident:
 		channel = x_part_x.Name
 	case *ast.CallExpr:
-		channel = get_name(astSet, x_part_x.Fun)
+		channel = get_name(astSet, x_part_x)
 	case *ast.SelectorExpr:
-		channel = get_selector_expression_name(x_part_x)
+		channel = get_selector_expression_name(astSet, x_part_x)
 	default:
 		errString := fmt.Sprintf("Unknown type %T in instrument_receive_statement", x_part)
 		panic(errString)
@@ -590,7 +602,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		func_body = &ast.BlockStmt{
 			List: t.Body.List,
 		}
-	case *ast.Ident, *ast.SelectorExpr:
+	case *ast.Ident, *ast.SelectorExpr, *ast.CallExpr:
 		func_body = &ast.BlockStmt{
 			List: []ast.Stmt{
 				&ast.ExprStmt{
@@ -601,7 +613,9 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 				},
 			},
 		}
+
 	default:
+		ast.Print(astSet, n.Call.Fun)
 		fmt.Printf("Unknown Type %T in instrument_go_statement", n.Call.Fun)
 	}
 
@@ -869,7 +883,7 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 	case *ast.Ident:
 		return n_type.Name
 	case *ast.SelectorExpr:
-		return get_selector_expression_name(n_type)
+		return get_selector_expression_name(astSet, n_type)
 	case *ast.StarExpr:
 		return "*" + get_name(astSet, n.(*ast.StarExpr).X)
 	case *ast.CallExpr:
@@ -939,14 +953,8 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 }
 
 // get the full name of an selector expression
-func get_selector_expression_name(n *ast.SelectorExpr) string {
-	switch x := n.X.(type) {
-	case *ast.Ident:
-		return x.Name + "." + n.Sel.Name
-	case *ast.SelectorExpr:
-		return get_selector_expression_name(x) + "." + n.Sel.Name
-	}
-	return ""
+func get_selector_expression_name(astSet *token.FileSet, n *ast.SelectorExpr) string {
+	return get_name(astSet, n.X) + "." + n.Sel.Name
 }
 
 // get random string of length n
