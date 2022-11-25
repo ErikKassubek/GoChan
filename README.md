@@ -4,7 +4,7 @@
 - This code is still work in progress and may not work or result in incorrect behavior!
 ```
 
-Witten elaboration at: https://github.com/ErikKassubek/Bachelorarbeit
+Written elaboration at: https://github.com/ErikKassubek/Bachelorarbeit
 
 ## Makefile 
 You can run the instrumenter and build the created output by running
