@@ -77,13 +77,25 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 	}
 
 	mutexType := ""
+	tracerTypePointer := false
+	name := ""
+	var x_val *ast.SelectorExpr
 	switch n.Type.(type) {
 	case *ast.SelectorExpr:
+		x_val = n.Type.(*ast.SelectorExpr)
+	case *ast.StarExpr:
+		switch n.Type.(*ast.StarExpr).X.(type) {
+		case *ast.SelectorExpr:
+			tracerTypePointer = true
+			x_val = n.Type.(*ast.StarExpr).X.(*ast.SelectorExpr)
+		default:
+			return
+		}
 	default: // not a sync.Mutex
 		return
 	}
 
-	switch x_type := n.Type.(*ast.SelectorExpr).X.(type) {
+	switch x_type := x_val.X.(type) {
 	case *ast.Ident:
 		if x_type.Name != "sync" { // not a sync.Mutex
 			return
@@ -92,15 +104,19 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 		return
 	}
 
-	if n.Type.(*ast.SelectorExpr).Sel.Name == "Mutex" {
-		mutexType = "NewLock"
-	} else if n.Type.(*ast.SelectorExpr).Sel.Name == "RWMutex" {
-		mutexType = "NewRWLock"
+	if x_val.Sel.Name == "Mutex" {
+		mutexType = "NewMutex"
+	} else if x_val.Sel.Name == "RWMutex" {
+		mutexType = "NewRWMutex"
 	} else { // not a sync.Mutex
 		return
 	}
-
-	name := n.Names[0].Name
+	name = n.Names[0].Name
+	varTyp := "tracer." + mutexType + "()"
+	if tracerTypePointer {
+		varTyp = "tracer." + mutexType + "(); " + name + ":= &" + name + "_"
+		name += "_"
+	}
 
 	c.Replace(&ast.AssignStmt{
 		Lhs: []ast.Expr{
@@ -114,15 +130,8 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 		},
 		Tok: token.DEFINE,
 		Rhs: []ast.Expr{
-			&ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "tracer",
-					},
-					Sel: &ast.Ident{
-						Name: mutexType,
-					},
-				},
+			&ast.Ident{
+				Name: varTyp,
 			},
 		},
 	})
@@ -182,6 +191,14 @@ func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n 
 			} else {
 				continue
 			}
+		case *ast.StarExpr:
+			if name := get_name(astSet, res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
+				mut_name = "*tracer.Mutex"
+			} else if name == "sync.RWMutex" {
+				mut_name = "*tracer.RWMutex"
+			} else {
+				continue
+			}
 		default:
 			continue // continue if not a channel
 		}
@@ -216,6 +233,14 @@ func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast
 			} else {
 				continue
 			}
+		case *ast.StarExpr:
+			if name := get_name(astSet, res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
+				mut_name = "*tracer.Mutex"
+			} else if name == "sync.RWMutex" {
+				mut_name = "*tracer.RWMutex"
+			} else {
+				continue
+			}
 		default:
 			continue // continue if not a channel
 		}
@@ -243,9 +268,9 @@ func instrument_assign_struct_mut(astSet *token.FileSet, n *ast.AssignStmt, c *a
 		case *ast.CompositeLit:
 			var name string
 			if get_name(astSet, t_type.Type) == "sync.Mutex" {
-				name = "*tracer.NewLock()"
+				name = "*tracer.NewMutex()"
 			} else if get_name(astSet, t_type.Type) == "sync.RWMutex" {
-				name = "*tracer.NewRWLock()"
+				name = "*tracer.NewRWMutex()"
 			} else {
 				continue
 			}
@@ -260,9 +285,9 @@ func instrument_assign_struct_mut(astSet *token.FileSet, n *ast.AssignStmt, c *a
 	var name_str string
 	if n.Rhs[0].(*ast.CompositeLit).Elts == nil {
 		if name := get_name(astSet, n.Rhs[0].(*ast.CompositeLit).Type); name == "sync.Mutex" {
-			name_str = "tracer.NewLock()"
+			name_str = "tracer.NewMutex()"
 		} else if name == "sync.RWMutex" {
-			name_str = "tracer.NewRWLock()"
+			name_str = "tracer.NewRWMutex()"
 		} else {
 			return
 		}
