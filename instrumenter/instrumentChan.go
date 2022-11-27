@@ -42,8 +42,6 @@ import (
 func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 	add_tracer_import(f)
 
-	// ast.Print(astSet, f)
-
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -86,6 +84,8 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 			instrument_go_statements(astSet, n, c)
 		case *ast.SelectStmt: // handel select statements
 			instrument_select_statements(astSet, n, c)
+		case *ast.RangeStmt: // range
+			instrument_range_stm(astSet, n)
 		}
 
 		return true
@@ -161,7 +161,20 @@ func add_show_trace_call(n *ast.FuncDecl) {
 				},
 			},
 		},
-	}, n.Body.List...)
+		&ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.Ident{
+					Name: "defer time.Sleep",
+				},
+				Args: []ast.Expr{
+					&ast.Ident{
+						Name: "time.Millisecond",
+					},
+				},
+			},
+		},
+	},
+		n.Body.List...)
 
 }
 
@@ -173,7 +186,7 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 			case *ast.ChanType:
 				type_val := get_name(astSet, t_type.Value)
 				n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
-					Name: "tracer.Chan[" + type_val + "]",
+					Name: "= tracer.NewChan[" + type_val + "](0)",
 				}
 			}
 		case *ast.TypeSpec:
@@ -337,6 +350,64 @@ func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
 	}
 }
 
+// instrument range over channel
+func instrument_range_stm(astSet *token.FileSet, n *ast.RangeStmt) {
+	// switch n.Rhs[0].Body.List
+	switch n.Key.(type) {
+	case *ast.Ident:
+	default:
+		return
+	}
+
+	varName := get_name(astSet, n.Key.(*ast.Ident))
+
+	switch n.Key.(*ast.Ident).Obj.Decl.(type) {
+	case *ast.AssignStmt:
+	default:
+		return
+	}
+
+	l := n.Key.(*ast.Ident).Obj.Decl.(*ast.AssignStmt).Lhs
+	if len(l) != 1 {
+		return
+	}
+
+	r := n.Key.(*ast.Ident).Obj.Decl.(*ast.AssignStmt).Rhs[0]
+	switch r.(type) {
+	case *ast.UnaryExpr:
+	default:
+		return
+	}
+
+	chanName := get_name(astSet, r.(*ast.UnaryExpr).X)
+	chanType := ""
+	switch decl_type := r.(*ast.UnaryExpr).X.(*ast.Ident).Obj.Decl.(type) {
+	case *ast.AssignStmt:
+		chanType = get_name(astSet, decl_type.Rhs[0].(*ast.CallExpr))
+	default:
+		return
+	}
+
+	if len(chanType) < 17 {
+		return
+	}
+	if !(chanType[0:14] == "tracer.NewChan" || chanType[0:16] == "tracer.NewRWChan") {
+		return
+	}
+
+	n.Key.(*ast.Ident).Name = varName + "_"
+	n.X = &ast.Ident{Name: chanName + ".GetChan()"}
+	n.Body.List = append([]ast.Stmt{
+		&ast.ExprStmt{
+			X: &ast.Ident{Name: chanName + ".Post(false, " + varName + "_)"},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{Name: varName + " := " + varName + "_.GetInfo()"},
+		},
+	},
+		n.Body.List...)
+}
+
 // instrument if n is a call expression
 func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 	// check make functions
@@ -414,11 +485,15 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 	case *ast.SelectorExpr:
 		value = get_selector_expression_name(astSet, lit)
 	case *ast.UnaryExpr:
+		arg_string := ""
+		for _, a := range lit.X.(*ast.CompositeLit).Elts {
+			arg_string += get_name(astSet, a) + ","
+		}
 		switch t_type := lit.X.(*ast.CompositeLit).Type.(type) {
 		case *ast.Ident:
-			value = lit.Op.String() + t_type.Name + "{}"
+			value = lit.Op.String() + t_type.Name + "{" + arg_string + "}"
 		case *ast.SelectorExpr:
-			value = lit.Op.String() + get_selector_expression_name(astSet, t_type) + "{}"
+			value = lit.Op.String() + get_selector_expression_name(astSet, t_type) + "{" + arg_string + "}"
 
 		}
 	case *ast.FuncLit:
@@ -826,7 +901,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 		c.(*ast.CommClause).Body = append([]ast.Stmt{
 			&ast.ExprStmt{
 				X: &ast.Ident{
-					Name: name + ".PostSelect(" + rec + ", " + assign_name + ")",
+					Name: name + ".Post(" + rec + ", " + assign_name + ")",
 				},
 			},
 		}, c.(*ast.CommClause).Body...)

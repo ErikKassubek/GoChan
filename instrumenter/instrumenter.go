@@ -105,6 +105,10 @@ func instrument_go_file(file_path string) error {
 
 	fmt.Printf("Instrument file: %s\n", file_path)
 
+	// if file_path == "Examples/go-dsp/fft/radix2.go" {
+	// 	ast.Print(astSet, f)
+	// }
+
 	if instrumentChan {
 		instrument_chan(astSet, f)
 	}

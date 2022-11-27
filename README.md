@@ -175,14 +175,14 @@ func test() {
 
 		select {
 		case sel_XVlBzgbaiC := <-a.GetChan():
-			a.PostSelect(true, sel_XVlBzgbaiC)
+			a.Post(true, sel_XVlBzgbaiC)
 			x := sel_XVlBzgbaiC.GetInfo()
 			println(x)
 		case sel_MRAjWwhT := <-b.GetChan():
-			b.PostSelect(true, sel_MRAjWwhT)
+			b.Post(true, sel_MRAjWwhT)
 			println("b")
 		case c.GetChan() <- sel_HctcuAxh:
-			c.PostSelect(false, sel_HctcuAxh)
+			c.Post(false, sel_HctcuAxh)
 			println("c")
 		default:
 			tracer.PostDefault()

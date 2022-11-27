@@ -141,6 +141,18 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Cursor) {
 	for j, s := range n.Specs {
 		switch s_type := s.(type) {
+		case *ast.ValueSpec: // var
+			genString := ""
+			name := get_name(astSet, s_type.Type)
+			if name == "sync.Mutex" {
+				genString = "= tracer.NewMutex()"
+			} else if name == "sync.RWMutex" {
+				genString = "= tracer.NewRWMutex()"
+			} else {
+				continue
+			}
+			n.Specs[j].(*ast.ValueSpec).Type = &ast.Ident{Name: genString}
+
 		case *ast.TypeSpec: // struct or interface
 			switch s_t_t := s_type.Type.(type) {
 			case *ast.StructType: // struct
