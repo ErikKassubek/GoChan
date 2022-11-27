@@ -64,9 +64,7 @@ func (m *Mutex) TryLock() bool {
 func (m *Mutex) t_Lock(try bool) bool {
 	index := getIndex()
 
-	counterLock.RLock()
-	counter[index]++
-	counterLock.RUnlock()
+	increaseCounter(index)
 
 	res := true
 	if try {
@@ -86,9 +84,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 func (m *Mutex) Unlock() {
 	index := getIndex()
 
-	counterLock.RLock()
-	counter[index]++
-	counterLock.RUnlock()
+	increaseCounter(index)
 
 	m.mu.Unlock()
 
@@ -136,10 +132,7 @@ func (m *RWMutex) TryRLock() bool {
 func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
-	counterLock.RLock()
-	counter[index]++
-	counterLock.RUnlock()
-
+	increaseCounter(index)
 	res := true
 	if try {
 		if read {
@@ -176,9 +169,7 @@ func (m *RWMutex) RUnlock() {
 func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()
 
-	counterLock.RLock()
-	counter[index]++
-	counterLock.RUnlock()
+	increaseCounter(index)
 
 	if read {
 		m.mu.RUnlock()

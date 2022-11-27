@@ -85,3 +85,10 @@ func getIndex() int {
 	routineIndexLock.Unlock()
 	return res
 }
+
+// increase the counter at a given index
+func increaseCounter(index int) {
+	counterLock.Lock()
+	counter[index]++
+	counterLock.Unlock()
+}

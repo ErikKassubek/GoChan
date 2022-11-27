@@ -88,9 +88,7 @@ func (ch *Chan[T]) GetIdPre(receive bool) PreObj {
 func (ch *Chan[T]) Send(val T) {
 	index := getIndex()
 
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
+	increaseCounter(index)
 
 	// add pre event to tracer
 	tracesLock.Lock()
@@ -115,9 +113,7 @@ func (ch *Chan[T]) Send(val T) {
 func (ch *Chan[T]) Receive() T {
 	index := getIndex()
 
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
+	increaseCounter(index)
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: false})
@@ -133,9 +129,24 @@ func (ch *Chan[T]) Receive() T {
 	return res.info
 }
 
+// receive range
+func (ch *Chan[T]) ReceiveRange() []T {
+	index := getIndex()
+
+	increaseCounter(index)
+
+	res := make([]T, 0)
+	for range ch.c {
+		res = append(res, ch.Receive())
+	}
+	return res
+}
+
 // drop in replacement for closing a channel
 func (ch *Chan[T]) Close() {
 	index := getIndex()
+	increaseCounter(index)
+
 	close(ch.c)
 
 	tracesLock.Lock()
