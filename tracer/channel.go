@@ -129,19 +129,6 @@ func (ch *Chan[T]) Receive() T {
 	return res.info
 }
 
-// receive range
-func (ch *Chan[T]) ReceiveRange() []T {
-	index := getIndex()
-
-	increaseCounter(index)
-
-	res := make([]T, 0)
-	for range ch.c {
-		res = append(res, ch.Receive())
-	}
-	return res
-}
-
 // drop in replacement for closing a channel
 func (ch *Chan[T]) Close() {
 	index := getIndex()
