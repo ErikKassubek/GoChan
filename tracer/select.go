@@ -42,7 +42,7 @@ func PreSelect(def bool, channels ...PreObj) {
 }
 
 // add at begging of select block
-func (ch *Chan[T]) PostSelect(receive bool, message Message[T]) {
+func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 	index := getIndex()
 	counterLock.Lock()
 	counter[index]++
