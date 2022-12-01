@@ -33,29 +33,49 @@ mutex.go
 Drop in replacements for (rw)mutex and (Try)(R)lock and (Try)(R-)Unlock
 */
 
-// Mutex
+/*
+Struct to implement a mutex. Is used as drop-in replacement for sync.Mutex
+@field mu *sync.Mutex: actual mutex to perform lock and unlock operations
+@field id uint32: id of the mutex
+*/
 type Mutex struct {
 	mu *sync.Mutex
-	id int
+	id uint32
 }
 
-// create mutex
+/*
+Function to create and initialize a new Mutex
+@return nil
+*/
 func NewMutex() Mutex {
-	m := Mutex{mu: &sync.Mutex{}, id: int(atomic.AddUint32(&numberOfMutex, 1))}
+	m := Mutex{mu: &sync.Mutex{}, id: atomic.AddUint32(&numberOfMutex, 1)}
 	return m
 }
 
-// lock a mutex
+/*
+Function to lock a Mutex.
+@receiver *Mutex
+@return nil
+*/
 func (m *Mutex) Lock() {
 	m.t_Lock(false)
 }
 
-// try to lock a mutex
+/*
+Function to try-lock a Mutex.
+@receiver *Mutex
+@return bool: true if lock was successful, false otherwise
+*/
 func (m *Mutex) TryLock() bool {
 	return m.t_Lock(true)
 }
 
-// helper for lock on mutex
+/*
+Function as helper to perform actual locking of Mutex.
+@receiver *Mutex
+@param try bool: true if lock is try-lock, false otherwise
+@return bool: true if lock was successful, false otherwise
+*/
 func (m *Mutex) t_Lock(try bool) bool {
 	index := getIndex()
 
@@ -76,7 +96,11 @@ func (m *Mutex) t_Lock(try bool) bool {
 	return res
 }
 
-// unlock mutex
+/*
+Function to unlock a Mutex.
+@receiver *Mutex
+@return nil
+*/
 func (m *Mutex) Unlock() {
 	index := getIndex()
 
@@ -90,39 +114,68 @@ func (m *Mutex) Unlock() {
 	tracesLock.Unlock()
 }
 
-// create RWMutex
+/*
+Struct to implement a rw-mutex. Is used as drop-in replacement for sync.RWMutex
+@field mu *sync.RWMutex: actual rw-mutex to perform lock and unlock operations
+@field id uint32: id of the mutex
+*/
+type RWMutex struct {
+	mu *sync.RWMutex
+	id uint32
+}
+
+/*
+Function to create and initialize a new RWMutex
+@return RWMutex: new RWMutex object
+*/
 func NewRWMutex() RWMutex {
-	m := RWMutex{mu: &sync.RWMutex{}, id: int(atomic.AddUint32(&numberOfMutex, 1))}
+	m := RWMutex{mu: &sync.RWMutex{}, id: atomic.AddUint32(&numberOfMutex, 1)}
 	return m
 }
 
-// RW-Mutex
-type RWMutex struct {
-	mu *sync.RWMutex
-	id int
-}
-
-// lock rwMutex
+/*
+Function to lock a RWMutex.
+@receiver *RWMutex
+@return nil
+*/
 func (m *RWMutex) Lock() {
 	m.t_RwLock(false, false)
 }
 
-// tryLock rwMutex
+/*
+Function to r-lock a RWMutex.
+@receiver *RWMutex
+@return nil
+*/
 func (m *RWMutex) RLock() {
 	m.t_RwLock(false, true)
 }
 
-// trylock rwMutex
+/*
+Function to try-lock a Mutex.
+@receiver *RWMutex
+@return bool: true if lock was successful, false otherwise
+*/
 func (m *RWMutex) TryLock() bool {
 	return m.t_RwLock(true, false)
 }
 
-// tryRlock rwMutex
+/*
+Function to try-r-lock a Mutex.
+@receiver *RWMutex
+@return bool: true if lock was successful, false otherwise
+*/
 func (m *RWMutex) TryRLock() bool {
 	return m.t_RwLock(true, true)
 }
 
-// helper function to lock rwMutex
+/*
+Function as helper to perform actual locking of RWMutex.
+@receiver *RWMutex
+@param try bool: true if lock is try-lock, false otherwise
+@param read bool: true if lock is r-lock, false otherwise
+@return bool: true if lock was successful, false otherwise
+*/
 func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
@@ -152,17 +205,30 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	return res
 }
 
-// unlock rwMutex
+/*
+Function to unlock a RWMutex.
+@receiver *RWMutex
+@return nil
+*/
 func (m *RWMutex) Unlock() {
 	m.t_Unlock(false)
 }
 
-// rUnlock rwMutex
+/*
+Function to r-unlock a RWMutex.
+@receiver *RWMutex
+@return nil
+*/
 func (m *RWMutex) RUnlock() {
 	m.t_Unlock(true)
 }
 
-// helper function to unlock rwMutex
+/*
+Function as helper to perform actual unlock on RWMutex
+@receiver *RWMutex
+@param read bool: true if it is a r-unlock, false otherwise
+@return nil
+*/
 func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()
 

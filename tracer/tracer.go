@@ -46,8 +46,12 @@ var numberOfMutex uint32
 var traces = make([]([]TraceElement), 0) // lists of traces
 var tracesLock sync.RWMutex
 
-var counter uint32
+var counter uint32 // PC
 
+/*
+Function to initialize the tracer.
+@return: nil
+*/
 func Init() {
 	numberRoutines = 0
 	numberOfChan = 0
@@ -65,6 +69,10 @@ func Init() {
 	go func() { t := time.NewTimer(10 * time.Second); <-t.C; PrintTrace() }()
 }
 
+/*
+Function to print the collected trace.
+@return nil
+*/
 func PrintTrace() {
 	tracesLock.RLock()
 	for _, trace := range traces {
@@ -80,7 +88,10 @@ func PrintTrace() {
 	tracesLock.RUnlock()
 }
 
-// get the routine trace index
+/*
+Function to get the index of the routine, from wich the function is called
+@return nil
+*/
 func getIndex() uint32 {
 	id := goid.Get()
 	routineIndexLock.Lock()

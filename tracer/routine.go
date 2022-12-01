@@ -34,12 +34,15 @@ spawn.go
 Drop in replacements to create and start a new go routine
 */
 
-// call before creating routine
+/*
+Function to call before the creation of a new routine in the old routine
+@return id of the new routine
+*/
 func SpawnPre() uint32 {
 	nr := atomic.AddUint32(&numberRoutines, 1)
 	index := getIndex()
 
-	timestamp := atomic.LoadUint32(&counter)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceSignal{timestamp: timestamp, routine: nr})
@@ -49,7 +52,10 @@ func SpawnPre() uint32 {
 	return nr
 }
 
-// call in newly created routine
+/*
+Function to call after the creation of a new routine in the new routine
+@param numRut uint32: id of the new routine
+*/
 func SpawnPost(numRut uint32) {
 	id := goid.Get()
 

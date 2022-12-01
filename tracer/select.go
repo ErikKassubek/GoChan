@@ -32,8 +32,12 @@ select.go
 Drop in replacements for select
 */
 
-// add before select,
-// def is true if the select has a default path
+/*
+Function to add before a select statement.
+@param def bool: true if the select has a default statement, false otherwise
+@param channels ...PreObj: list of PreObj to store the cases
+@return nil
+*/
 func PreSelect(def bool, channels ...PreObj) {
 	index := getIndex()
 
@@ -45,7 +49,12 @@ func PreSelect(def bool, channels ...PreObj) {
 	tracesLock.Unlock()
 }
 
-// add at begging of select block
+/*
+Function to add at the beginning of a select case body.
+&param receive bool: true, if the case was started with a receive false if with a send
+@param message Message[T]: message wich was send over the channel
+@return nil
+*/
 func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 	index := getIndex()
 	timestamp := atomic.AddUint32(&counter, 1)
@@ -54,17 +63,20 @@ func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 		tracesLock.Lock()
 		traces[index] = append(traces[index], &TracePost{timestamp: timestamp,
 			chanId: ch.id, send: false,
-			SenderId: message.sender, senderTimestamp: message.senderTimestamp})
+			senderId: message.sender, senderTimestamp: message.senderTimestamp})
 		tracesLock.Unlock()
 	} else {
 		tracesLock.Lock()
 		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
-			SenderId: index, timestamp: timestamp})
+			senderId: index, timestamp: timestamp})
 		tracesLock.Unlock()
 	}
 }
 
-// add to default statement of select
+/*
+Function to add at the beginning of a select default body.
+@return nil
+*/
 func PostDefault() {
 	index := getIndex()
 	timestamp := atomic.AddUint32(&counter, 1)

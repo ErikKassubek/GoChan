@@ -207,17 +207,18 @@ Every line represents a routine (the first line is the main routine).
 The elements have the following meaning:
 |Element|Meaning|
 |-|-|
-|signal(i) | a new routine with id = i has been created from the current routine|
-|wait(i)| the current, non main routine was started with id = i|
-|pre(i!)| the routine has reached a state, where channel i is supposed to send, but has not send yet|
-|post(i, j, k?) | the channel k has successfully send its data in routine i with time step j|
-|pre(i?)|the routine has reached a state, where channel i is supposed to receive, but has not received yet|
-|post(i, j, k?)|the channel k has successfully received its data from routine i with time step j of routine i|
-|pre(i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
-|pre(i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
-|post(default)|The switch statement has executed and chosen the default case.|
-|lock(i, j, l)|The lock with id i has tried to lock. l is 1 if the lock was successful, 0 if it was not (e.g. with TryLock). j can be "t", "r", "tr" or "-". "t" shows, that the lock operation was a try-lock operation. "r" shows, that it was an r-lock operation. "tr" shows, that it was a try-r-operation".|
-|unlock(i)|The lock with id i was unlocked.|
+|signal(t, i) | a new routine with id = i has been created from the current routine|
+|wait(t, i)| the current, non main routine was started with id = i|
+|pre(t, i!)| the routine has reached a state, where channel i is supposed to send, but has not send yet|
+|post(t, i, k!) | the channel k has successfully send its data in routine i with time step j|
+|pre(t, i?)|the routine has reached a state, where channel i is supposed to receive, but has not received yet|
+|post(t, i, j, k?)|the channel k has successfully received its data from routine i with time step j of routine i|
+|pre(t, i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
+|pre(t, i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
+|post(t, default)|The switch statement has executed and chosen the default case.|
+|lock(t, i, j, l)|The lock with id i has tried to lock. l is 1 if the lock was successful, 0 if it was not (e.g. with TryLock). j can be "t", "r", "tr" or "-". "t" shows, that the lock operation was a try-lock operation. "r" shows, that it was an r-lock operation. "tr" shows, that it was a try-r-operation".|
+|unlock(t, i)|The lock with id i was unlocked.|
+t always states the timestamp of the operation.
 
 
 ## References 
