@@ -41,28 +41,31 @@ type TraceElement interface {
 
 // type for the signal element
 type TraceSignal struct {
-	routine int
+	timestamp uint32
+	routine   int
 }
 
 // print function for TraceSignal
 func (ts *TraceSignal) PrintElement() {
-	fmt.Printf("signal(%d)", ts.routine+1)
+	fmt.Printf("signal(%d, %d)", ts.timestamp, ts.routine+1)
 }
 
 // type for the wait element
 type TraceWait struct {
-	routine int
+	timestamp uint32
+	routine   int
 }
 
 // print function for TraceWait
 func (tw *TraceWait) PrintElement() {
-	fmt.Printf("wait(%d)", tw.routine+1)
+	fmt.Printf("wait(%d, %d)", tw.timestamp, tw.routine+1)
 }
 
 // type for the pre element
 type TracePre struct {
-	chanId int
-	send   bool
+	timestamp uint32
+	chanId    int
+	send      bool
 }
 
 // print function for TracePre
@@ -71,44 +74,49 @@ func (tp *TracePre) PrintElement() {
 	if tp.send {
 		direction = "!"
 	}
-	fmt.Printf("pre(%d%s)", tp.chanId+1, direction)
+	fmt.Printf("pre(%d, %d%s)", tp.timestamp, tp.chanId+1, direction)
 }
 
 // type for the post element
 type TracePost struct {
-	chanId    int
-	send      bool
-	SenderId  int
-	timestamp int
+	timestamp       uint32
+	chanId          int
+	send            bool
+	SenderId        int
+	senderTimestamp uint32
 }
 
 // print function for TracePost
 func (tp *TracePost) PrintElement() {
-	direction := "?"
 	if tp.send {
-		direction = "!"
+		direction := "!"
+		fmt.Printf("post(%d, %d, %d%s)", tp.timestamp, tp.SenderId+1, tp.chanId+1, direction)
+	} else {
+		direction := "?"
+		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.SenderId+1, tp.chanId+1, direction, tp.senderTimestamp)
 	}
-	fmt.Printf("post(%d, %d, %d%s)", tp.SenderId+1, tp.timestamp, tp.chanId+1, direction)
 }
 
 // type for the close element
 type TraceClose struct {
-	chanId int
+	timestamp uint32
+	chanId    int
 }
 
 // print function for TraceClose
 func (tc *TraceClose) PrintElement() {
-	fmt.Printf("close(%d)", tc.chanId+1)
+	fmt.Printf("close(%d, %d)", tc.timestamp, tc.chanId+1)
 }
 
 // type for pre select event
 type TracePreSelect struct {
-	chanIds []PreObj
-	def     bool // true if select has default case
+	timestamp uint32
+	chanIds   []PreObj
+	def       bool // true if select has default case
 }
 
 func (tps *TracePreSelect) PrintElement() {
-	fmt.Printf("pre(")
+	fmt.Printf("pre(%d, ", tps.timestamp)
 	for i, c := range tps.chanIds {
 		if c.receive {
 			fmt.Printf("%d?", c.id+1)
@@ -126,20 +134,23 @@ func (tps *TracePreSelect) PrintElement() {
 }
 
 // type for the default element
-type TraceDefault struct{}
+type TraceDefault struct {
+	timestamp uint32
+}
 
 // print function for TracePre
 func (td *TraceDefault) PrintElement() {
-	fmt.Printf("post(default)")
+	fmt.Printf("post(%d, default)", td.timestamp)
 }
 
 // ==================== Mutex =====================
 
 type TraceLock struct {
-	lockId int
-	try    bool
-	read   bool
-	suc    bool
+	timestamp uint32
+	lockId    int
+	try       bool
+	read      bool
+	suc       bool
 }
 
 func (tl *TraceLock) PrintElement() {
@@ -159,13 +170,14 @@ func (tl *TraceLock) PrintElement() {
 	} else {
 		suc_elem += "0"
 	}
-	fmt.Printf("lock(%d, %s, %s)", tl.lockId+1, p_elem, suc_elem)
+	fmt.Printf("lock(%d, %d, %s, %s)", tl.timestamp, tl.lockId+1, p_elem, suc_elem)
 }
 
 type TraceUnlock struct {
-	lockId int
+	timestamp uint32
+	lockId    int
 }
 
 func (tu *TraceUnlock) PrintElement() {
-	fmt.Printf("unlock(%d)", tu.lockId+1)
+	fmt.Printf("unlock(%d, %d)", tu.timestamp, tu.lockId+1)
 }

@@ -2,6 +2,7 @@ package tracer
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 /*
@@ -47,6 +48,7 @@ func NewMutex() Mutex {
 	m := Mutex{mu: &sync.Mutex{}, id: numberOfMutex}
 	numberOfMutex++
 	numberOfMutexLock.Unlock()
+
 	return m
 }
 
@@ -64,7 +66,7 @@ func (m *Mutex) TryLock() bool {
 func (m *Mutex) t_Lock(try bool) bool {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	res := true
 	if try {
@@ -74,7 +76,8 @@ func (m *Mutex) t_Lock(try bool) bool {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceLock{lockId: m.id, try: try, read: false, suc: res})
+	traces[index] = append(traces[index], &TraceLock{timestamp: timestamp,
+		lockId: m.id, try: try, read: false, suc: res})
 	tracesLock.Unlock()
 
 	return res
@@ -84,12 +87,13 @@ func (m *Mutex) t_Lock(try bool) bool {
 func (m *Mutex) Unlock() {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	m.mu.Unlock()
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{lockId: m.id})
+	traces[index] = append(traces[index], &TraceUnlock{timestamp: timestamp,
+		lockId: m.id})
 	tracesLock.Unlock()
 }
 
@@ -99,6 +103,7 @@ func NewRWMutex() RWMutex {
 	m := RWMutex{mu: &sync.RWMutex{}, id: numberOfMutex}
 	numberOfMutex++
 	numberOfMutexLock.Unlock()
+
 	return m
 }
 
@@ -132,7 +137,8 @@ func (m *RWMutex) TryRLock() bool {
 func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
+
 	res := true
 	if try {
 		if read {
@@ -149,7 +155,9 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceLock{lockId: m.id, try: try, read: read, suc: res})
+	traces[index] = append(traces[index],
+		&TraceLock{timestamp: timestamp, lockId: m.id, try: try, read: read,
+			suc: res})
 	tracesLock.Unlock()
 
 	return res
@@ -169,7 +177,7 @@ func (m *RWMutex) RUnlock() {
 func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	if read {
 		m.mu.RUnlock()
@@ -178,6 +186,7 @@ func (m *RWMutex) t_Unlock(read bool) {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{lockId: m.id})
+	traces[index] = append(traces[index], &TraceUnlock{timestamp: timestamp,
+		lockId: m.id})
 	tracesLock.Unlock()
 }

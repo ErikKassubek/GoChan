@@ -1,5 +1,9 @@
 package tracer
 
+import (
+	"sync/atomic"
+)
+
 /*
 Copyright (c) 2022, Erik Kassubek
 All rights reserved.
@@ -33,16 +37,13 @@ var numberOfChan int = 0
 type Message[T any] struct {
 	info            T
 	sender          int
-	senderTimestamp int
+	senderTimestamp uint32
 }
 
 // create a message object
 func BuildMessage[T any](info T) Message[T] {
 	index := getIndex()
-	counterLock.RLock()
-	timeStamp := counter[index]
-	counterLock.RUnlock()
-	return Message[T]{info: info, sender: index, senderTimestamp: timeStamp}
+	return Message[T]{info: info, sender: index, senderTimestamp: atomic.LoadUint32(&counter)}
 }
 
 // get message info
@@ -88,42 +89,43 @@ func (ch *Chan[T]) GetIdPre(receive bool) PreObj {
 func (ch *Chan[T]) Send(val T) {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	// add pre event to tracer
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: true})
+	traces[index] = append(traces[index], &TracePre{timestamp: timestamp,
+		chanId: ch.id, send: true})
 	tracesLock.Unlock()
 
 	ch.c <- Message[T]{
 		info:            val,
 		sender:          index,
-		senderTimestamp: counter[index],
+		senderTimestamp: timestamp,
 	}
 
-	counterLock.RLock()
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
-		SenderId: index, timestamp: counter[index]})
+		SenderId: index, timestamp: atomic.AddUint32(&counter, 1)})
 	tracesLock.Unlock()
-	counterLock.RUnlock()
 }
 
 // drop in replacement for receiving value on channel chan and returning value
 func (ch *Chan[T]) Receive() T {
 	index := getIndex()
 
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePre{chanId: ch.id, send: false})
+	traces[index] = append(traces[index], &TracePre{timestamp: timestamp,
+		chanId: ch.id, send: false})
 	tracesLock.Unlock()
 
 	res := <-ch.c
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-		SenderId: res.sender, timestamp: res.senderTimestamp})
+	traces[index] = append(traces[index], &TracePost{
+		timestamp: atomic.AddUint32(&counter, 1), chanId: ch.id, send: false,
+		SenderId: res.sender, senderTimestamp: res.senderTimestamp})
 	tracesLock.Unlock()
 
 	return res.info
@@ -132,11 +134,12 @@ func (ch *Chan[T]) Receive() T {
 // drop in replacement for closing a channel
 func (ch *Chan[T]) Close() {
 	index := getIndex()
-	increaseCounter(index)
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	close(ch.c)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceClose{ch.id})
+	traces[index] = append(traces[index], &TraceClose{timestamp: timestamp,
+		chanId: ch.id})
 	tracesLock.Unlock()
 }

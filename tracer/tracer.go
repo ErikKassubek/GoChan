@@ -43,17 +43,14 @@ var numberRoutines = 0
 var traces = make([]([]TraceElement), 0) // lists of traces
 var tracesLock sync.RWMutex
 
-var counter = make([]int, 0) // PC
-var counterLock sync.RWMutex
+var counter uint32
 
 func Init() {
 	tracesLock.Lock()
 	traces = append(traces, []TraceElement{})
 	tracesLock.Unlock()
 
-	counterLock.Lock()
-	counter = append(counter, 0)
-	counterLock.Unlock()
+	counter = 0
 
 	routineIndexLock.Lock()
 	routineIndex[goid.Get()] = 0
@@ -84,11 +81,4 @@ func getIndex() int {
 	res := routineIndex[id]
 	routineIndexLock.Unlock()
 	return res
-}
-
-// increase the counter at a given index
-func increaseCounter(index int) {
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
 }
