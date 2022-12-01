@@ -1,5 +1,9 @@
 package tracer
 
+import (
+	"sync/atomic"
+)
+
 /*
 Copyright (c) 2022, Erik Kassubek
 All rights reserved.
@@ -32,33 +36,30 @@ Drop in replacements for select
 // def is true if the select has a default path
 func PreSelect(def bool, channels ...PreObj) {
 	index := getIndex()
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
+
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePreSelect{channels, def})
+	traces[index] = append(traces[index], &TracePreSelect{timestamp: timestamp,
+		chanIds: channels, def: def})
 	tracesLock.Unlock()
 }
 
 // add at begging of select block
 func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 	index := getIndex()
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	if receive {
 		tracesLock.Lock()
-		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: false,
-			SenderId: message.sender, timestamp: message.senderTimestamp})
+		traces[index] = append(traces[index], &TracePost{timestamp: timestamp,
+			chanId: ch.id, send: false,
+			SenderId: message.sender, senderTimestamp: message.senderTimestamp})
 		tracesLock.Unlock()
 	} else {
 		tracesLock.Lock()
-		counterLock.Lock()
 		traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
-			SenderId: index, timestamp: counter[index]})
-		counterLock.Unlock()
+			SenderId: index, timestamp: timestamp})
 		tracesLock.Unlock()
 	}
 }
@@ -66,11 +67,9 @@ func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 // add to default statement of select
 func PostDefault() {
 	index := getIndex()
-	counterLock.Lock()
-	counter[index]++
-	counterLock.Unlock()
+	timestamp := atomic.AddUint32(&counter, 1)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceDefault{})
+	traces[index] = append(traces[index], &TraceDefault{timestamp: timestamp})
 	tracesLock.Unlock()
 }

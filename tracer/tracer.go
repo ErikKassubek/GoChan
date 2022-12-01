@@ -37,8 +37,8 @@ import (
 )
 
 var routineIndexLock sync.Mutex
-var routineIndex = make(map[int64]int)
-var numberRoutines = 0
+var routineIndex = make(map[int64]uint32)
+var numberRoutines uint32
 
 var traces = make([]([]TraceElement), 0) // lists of traces
 var tracesLock sync.RWMutex
@@ -46,11 +46,12 @@ var tracesLock sync.RWMutex
 var counter uint32
 
 func Init() {
+	numberRoutines = 0
+	counter = 0
+
 	tracesLock.Lock()
 	traces = append(traces, []TraceElement{})
 	tracesLock.Unlock()
-
-	counter = 0
 
 	routineIndexLock.Lock()
 	routineIndex[goid.Get()] = 0
@@ -75,7 +76,7 @@ func PrintTrace() {
 }
 
 // get the routine trace index
-func getIndex() int {
+func getIndex() uint32 {
 	id := goid.Get()
 	routineIndexLock.Lock()
 	res := routineIndex[id]

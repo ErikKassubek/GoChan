@@ -36,7 +36,7 @@ var numberOfChan int = 0
 
 type Message[T any] struct {
 	info            T
-	sender          int
+	sender          uint32
 	senderTimestamp uint32
 }
 

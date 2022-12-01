@@ -42,7 +42,7 @@ type TraceElement interface {
 // type for the signal element
 type TraceSignal struct {
 	timestamp uint32
-	routine   int
+	routine   uint32
 }
 
 // print function for TraceSignal
@@ -53,7 +53,7 @@ func (ts *TraceSignal) PrintElement() {
 // type for the wait element
 type TraceWait struct {
 	timestamp uint32
-	routine   int
+	routine   uint32
 }
 
 // print function for TraceWait
@@ -82,7 +82,7 @@ type TracePost struct {
 	timestamp       uint32
 	chanId          int
 	send            bool
-	SenderId        int
+	SenderId        uint32
 	senderTimestamp uint32
 }
 

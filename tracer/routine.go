@@ -1,6 +1,8 @@
 package tracer
 
 import (
+	"sync/atomic"
+
 	"github.com/petermattis/goid"
 )
 
@@ -33,31 +35,31 @@ Drop in replacements to create and start a new go routine
 */
 
 // call before creating routine
-func SpawnPre() int {
-	numberRoutines++
+func SpawnPre() uint32 {
+	nr := atomic.AddUint32(&numberRoutines, 1)
 	index := getIndex()
 
+	timestamp := atomic.LoadUint32(&counter)
+
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceSignal{numberRoutines})
+	traces[index] = append(traces[index], &TraceSignal{timestamp: timestamp, routine: nr})
 	traces = append(traces, make([]TraceElement, 0))
 	tracesLock.Unlock()
 
-	counterLock.Lock()
-	counter[index]++
-	counter = append(counter, 0)
-	counterLock.Unlock()
-
-	return numberRoutines
+	return nr
 }
 
 // call in newly created routine
-func SpawnPost(numRut int) {
+func SpawnPost(numRut uint32) {
 	id := goid.Get()
+
+	timestamp := atomic.AddUint32(&counter, 1)
+
 	routineIndexLock.Lock()
 	routineIndex[id] = numRut
 	routineIndexLock.Unlock()
 
 	tracesLock.Lock()
-	traces[numRut] = append(traces[numRut], &TraceWait{numRut})
+	traces[numRut] = append(traces[numRut], &TraceWait{timestamp: timestamp, routine: numRut})
 	tracesLock.Unlock()
 }
