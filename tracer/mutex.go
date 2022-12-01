@@ -33,9 +33,6 @@ mutex.go
 Drop in replacements for (rw)mutex and (Try)(R)lock and (Try)(R-)Unlock
 */
 
-var numberOfMutex int = 0
-var numberOfMutexLock sync.Mutex
-
 // Mutex
 type Mutex struct {
 	mu *sync.Mutex
@@ -44,11 +41,7 @@ type Mutex struct {
 
 // create mutex
 func NewMutex() Mutex {
-	numberOfMutexLock.Lock()
-	m := Mutex{mu: &sync.Mutex{}, id: numberOfMutex}
-	numberOfMutex++
-	numberOfMutexLock.Unlock()
-
+	m := Mutex{mu: &sync.Mutex{}, id: int(atomic.AddUint32(&numberOfMutex, 1))}
 	return m
 }
 
@@ -99,11 +92,7 @@ func (m *Mutex) Unlock() {
 
 // create RWMutex
 func NewRWMutex() RWMutex {
-	numberOfMutexLock.Lock()
-	m := RWMutex{mu: &sync.RWMutex{}, id: numberOfMutex}
-	numberOfMutex++
-	numberOfMutexLock.Unlock()
-
+	m := RWMutex{mu: &sync.RWMutex{}, id: int(atomic.AddUint32(&numberOfMutex, 1))}
 	return m
 }
 

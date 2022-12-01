@@ -32,8 +32,6 @@ channel.go
 Drop in replacements for channels and send and receive functions
 */
 
-var numberOfChan int = 0
-
 type Message[T any] struct {
 	info            T
 	sender          uint32
@@ -60,8 +58,8 @@ type Chan[T any] struct {
 // create a new channel with type T and size size, drop in replacement for
 // make(chan T, size), size = 0 for unbuffered channel
 func NewChan[T any](size int) Chan[T] {
-	ch := Chan[T]{c: make(chan Message[T], size), id: numberOfChan}
-	numberOfChan++
+	ch := Chan[T]{c: make(chan Message[T], size), id: int(atomic.AddUint32(&numberOfChan, 1))}
+
 	return ch
 }
 

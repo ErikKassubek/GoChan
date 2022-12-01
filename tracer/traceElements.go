@@ -105,7 +105,7 @@ type TraceClose struct {
 
 // print function for TraceClose
 func (tc *TraceClose) PrintElement() {
-	fmt.Printf("close(%d, %d)", tc.timestamp, tc.chanId+1)
+	fmt.Printf("close(%d, %d)", tc.timestamp, tc.chanId)
 }
 
 // type for pre select event
@@ -119,9 +119,9 @@ func (tps *TracePreSelect) PrintElement() {
 	fmt.Printf("pre(%d, ", tps.timestamp)
 	for i, c := range tps.chanIds {
 		if c.receive {
-			fmt.Printf("%d?", c.id+1)
+			fmt.Printf("%d?", c.id)
 		} else {
-			fmt.Printf("%d!", c.id+1)
+			fmt.Printf("%d!", c.id)
 		}
 		if i != len(tps.chanIds)-1 {
 			fmt.Printf(", ")
@@ -170,7 +170,7 @@ func (tl *TraceLock) PrintElement() {
 	} else {
 		suc_elem += "0"
 	}
-	fmt.Printf("lock(%d, %d, %s, %s)", tl.timestamp, tl.lockId+1, p_elem, suc_elem)
+	fmt.Printf("lock(%d, %d, %s, %s)", tl.timestamp, tl.lockId, p_elem, suc_elem)
 }
 
 type TraceUnlock struct {
@@ -179,5 +179,5 @@ type TraceUnlock struct {
 }
 
 func (tu *TraceUnlock) PrintElement() {
-	fmt.Printf("unlock(%d, %d)", tu.timestamp, tu.lockId+1)
+	fmt.Printf("unlock(%d, %d)", tu.timestamp, tu.lockId)
 }

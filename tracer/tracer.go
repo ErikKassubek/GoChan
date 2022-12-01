@@ -38,7 +38,10 @@ import (
 
 var routineIndexLock sync.Mutex
 var routineIndex = make(map[int64]uint32)
+
 var numberRoutines uint32
+var numberOfChan uint32
+var numberOfMutex uint32
 
 var traces = make([]([]TraceElement), 0) // lists of traces
 var tracesLock sync.RWMutex
@@ -47,6 +50,8 @@ var counter uint32
 
 func Init() {
 	numberRoutines = 0
+	numberOfChan = 0
+	numberOfMutex = 0
 	counter = 0
 
 	tracesLock.Lock()
