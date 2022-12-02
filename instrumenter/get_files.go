@@ -38,13 +38,21 @@ import (
 
 // get all files in in and write them into file_names
 // create folder structure in out
-func getAllFiles() error {
+/*
+Function to get all files in the in folder and add there names to file_names.
+The function also copies the folder structure into the output folder.
+@return []string: list of file names
+@return error: Error or nil
+*/
+func getAllFiles() ([]string, error) {
 	// remove old output folder
 	err := os.RemoveAll(out)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to remove old output folder %s.\n", out)
-		return err
+		return make([]string, 0), err
 	}
+
+	var file_names []string = make([]string, 0)
 
 	// get all file names
 	err = filepath.Walk(in,
@@ -63,7 +71,7 @@ func getAllFiles() error {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to walk through file path.\n")
-		return err
+		return make([]string, 0), err
 	}
 
 	// get folder structure in in and copy it to out
@@ -85,16 +93,16 @@ func getAllFiles() error {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to walk through dir path.\n")
-		return err
+		return make([]string, 0), err
 	}
 
 	for _, folder := range folders {
 		err := os.MkdirAll(folder, os.ModePerm)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Could not create folder %s.\n", folder)
-			return err
+			return make([]string, 0), err
 		}
 	}
 
-	return err
+	return file_names, nil
 }

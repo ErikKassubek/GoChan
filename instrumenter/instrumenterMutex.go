@@ -35,21 +35,21 @@ import (
 )
 
 // instrument a given ast file f
-func instrument_mutex(astSet *token.FileSet, f *ast.File) error {
+func instrument_mutex(f *ast.File) error {
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
 		switch n_type := n.(type) {
 		case *ast.FuncDecl:
-			instrument_function_declarations_mut(astSet, n_type, c)
+			instrument_function_declarations_mut(n_type, c)
 		case *ast.DeclStmt:
-			instrument_mutex_decl(astSet, n_type, c)
+			instrument_mutex_decl(n_type, c)
 		case *ast.GenDecl: // add import of tracer lib if other libs get imported
-			instrument_gen_decl_mut(astSet, n_type, c)
+			instrument_gen_decl_mut(n_type, c)
 		case *ast.AssignStmt:
 			switch n_type.Rhs[0].(type) {
 			case *ast.CompositeLit:
-				instrument_assign_struct_mut(astSet, n_type, c)
+				instrument_assign_struct_mut(n_type, c)
 			}
 		}
 
@@ -58,12 +58,12 @@ func instrument_mutex(astSet *token.FileSet, f *ast.File) error {
 	return nil
 }
 
-func instrument_function_declarations_mut(astSet *token.FileSet, d *ast.FuncDecl, c *astutil.Cursor) {
-	instrument_function_declaration_return_values_mut(astSet, d.Type)
-	instrument_function_declaration_parameter_mut(astSet, d.Type)
+func instrument_function_declarations_mut(d *ast.FuncDecl, c *astutil.Cursor) {
+	instrument_function_declaration_return_values_mut(d.Type)
+	instrument_function_declaration_parameter_mut(d.Type)
 }
 
-func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cursor) {
+func instrument_mutex_decl(d *ast.DeclStmt, c *astutil.Cursor) {
 	switch d.Decl.(type) {
 	case *ast.GenDecl:
 	default: // not a sync.Mutex
@@ -80,6 +80,11 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 	tracerTypePointer := false
 	name := ""
 	var x_val *ast.SelectorExpr
+
+	if n == nil || n.Type == nil {
+		return
+	}
+
 	switch n.Type.(type) {
 	case *ast.SelectorExpr:
 		x_val = n.Type.(*ast.SelectorExpr)
@@ -138,12 +143,12 @@ func instrument_mutex_decl(astSet *token.FileSet, d *ast.DeclStmt, c *astutil.Cu
 }
 
 // instrument mutex in struct declaration
-func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Cursor) {
+func instrument_gen_decl_mut(n *ast.GenDecl, c *astutil.Cursor) {
 	for j, s := range n.Specs {
 		switch s_type := s.(type) {
 		case *ast.ValueSpec: // var
 			genString := ""
-			name := get_name(astSet, s_type.Type)
+			name := get_name(s_type.Type)
 			if name == "sync.Mutex" {
 				genString = "= tracer.NewMutex()"
 			} else if name == "sync.RWMutex" {
@@ -158,7 +163,7 @@ func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.C
 			case *ast.StructType: // struct
 				for i, field := range s_t_t.Fields.List {
 					name_str := ""
-					if name := get_name(astSet, field.Type); name == "sync.Mutex" {
+					if name := get_name(field.Type); name == "sync.Mutex" {
 						name_str = "Mutex"
 					} else if name == "sync.RWMutex" {
 						name_str = "RWMutex"
@@ -173,8 +178,8 @@ func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.C
 				for _, t := range s_t_t.Methods.List {
 					switch t_type := t.Type.(type) {
 					case *ast.FuncType:
-						instrument_function_declaration_return_values_mut(astSet, t_type)
-						instrument_function_declaration_parameter_mut(astSet, t_type)
+						instrument_function_declaration_return_values_mut(t_type)
+						instrument_function_declaration_parameter_mut(t_type)
 					}
 				}
 			}
@@ -183,7 +188,7 @@ func instrument_gen_decl_mut(astSet *token.FileSet, n *ast.GenDecl, c *astutil.C
 }
 
 // change the return value of functions if they contain a mutex
-func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n *ast.FuncType) {
+func instrument_function_declaration_return_values_mut(n *ast.FuncType) {
 	astResult := n.Results
 
 	// do nothing if the functions does not have return values
@@ -196,7 +201,7 @@ func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n 
 	for i, res := range n.Results.List {
 		switch res.Type.(type) {
 		case *ast.SelectorExpr:
-			if name := get_name(astSet, res.Type); name == "sync.Mutex" {
+			if name := get_name(res.Type); name == "sync.Mutex" {
 				mut_name = "tracer.Mutex"
 			} else if name == "sync.RWMutex" {
 				mut_name = "tracer.RWMutex"
@@ -204,7 +209,7 @@ func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n 
 				continue
 			}
 		case *ast.StarExpr:
-			if name := get_name(astSet, res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
+			if name := get_name(res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
 				mut_name = "*tracer.Mutex"
 			} else if name == "sync.RWMutex" {
 				mut_name = "*tracer.RWMutex"
@@ -225,7 +230,7 @@ func instrument_function_declaration_return_values_mut(astSet *token.FileSet, n 
 }
 
 // instrument all function parameter
-func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast.FuncType) {
+func instrument_function_declaration_parameter_mut(n *ast.FuncType) {
 	astResult := n.Params
 
 	// do nothing if the functions does not have return values
@@ -238,7 +243,7 @@ func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast
 	for i, res := range astResult.List {
 		switch res.Type.(type) {
 		case *ast.SelectorExpr:
-			if name := get_name(astSet, res.Type); name == "sync.Mutex" {
+			if name := get_name(res.Type); name == "sync.Mutex" {
 				mut_name = "tracer.Mutex"
 			} else if name == "sync.RWMutex" {
 				mut_name = "tracer.RWMutex"
@@ -246,7 +251,7 @@ func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast
 				continue
 			}
 		case *ast.StarExpr:
-			if name := get_name(astSet, res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
+			if name := get_name(res.Type.(*ast.StarExpr).X); name == "sync.Mutex" {
 				mut_name = "*tracer.Mutex"
 			} else if name == "sync.RWMutex" {
 				mut_name = "*tracer.RWMutex"
@@ -268,7 +273,7 @@ func instrument_function_declaration_parameter_mut(astSet *token.FileSet, n *ast
 }
 
 // instrument mutex in assign of struct type
-func instrument_assign_struct_mut(astSet *token.FileSet, n *ast.AssignStmt, c *astutil.Cursor) {
+func instrument_assign_struct_mut(n *ast.AssignStmt, c *astutil.Cursor) {
 	for i, t := range n.Rhs[0].(*ast.CompositeLit).Elts {
 		switch t.(type) {
 		case *(ast.KeyValueExpr):
@@ -279,9 +284,9 @@ func instrument_assign_struct_mut(astSet *token.FileSet, n *ast.AssignStmt, c *a
 		switch t_type := t.(*ast.KeyValueExpr).Value.(type) {
 		case *ast.CompositeLit:
 			var name string
-			if get_name(astSet, t_type.Type) == "sync.Mutex" {
+			if get_name(t_type.Type) == "sync.Mutex" {
 				name = "*tracer.NewMutex()"
-			} else if get_name(astSet, t_type.Type) == "sync.RWMutex" {
+			} else if get_name(t_type.Type) == "sync.RWMutex" {
 				name = "*tracer.NewRWMutex()"
 			} else {
 				continue
@@ -296,7 +301,7 @@ func instrument_assign_struct_mut(astSet *token.FileSet, n *ast.AssignStmt, c *a
 
 	var name_str string
 	if n.Rhs[0].(*ast.CompositeLit).Elts == nil {
-		if name := get_name(astSet, n.Rhs[0].(*ast.CompositeLit).Type); name == "sync.Mutex" {
+		if name := get_name(n.Rhs[0].(*ast.CompositeLit).Type); name == "sync.Mutex" {
 			name_str = "tracer.NewMutex()"
 		} else if name == "sync.RWMutex" {
 			name_str = "tracer.NewRWMutex()"

@@ -35,7 +35,6 @@ import (
 )
 
 var path_separator string = "/"
-var file_names []string = make([]string, 0)
 
 var instrumentChan bool
 var instrumentMutex bool
@@ -44,6 +43,8 @@ var in string
 var out string
 
 var show_trace bool
+
+var n_repl int = 0
 
 // read command line arguments
 func command_line_args() error {
@@ -93,13 +94,13 @@ func main() {
 	}
 
 	// save all go files from in in file_names
-	err = getAllFiles()
+	file_name, err := getAllFiles()
 	if err != nil {
 		panic(err)
 	}
 
 	// instrument all files in file_names
-	err = instrument_files()
+	err = instrument_files(file_name)
 	if err != nil {
 		panic(err)
 	}

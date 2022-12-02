@@ -25,7 +25,7 @@ Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 
 /*
 instrumenter.go
-instrument files to work with the "github.com/ErikKassubek/Deadlock-Go" and
+instrument files to work with the
 "github.com/ErikKassubek/GoChan/tracer" libraries
 */
 
@@ -38,16 +38,13 @@ import (
 	"os"
 )
 
-// collect params and there type
-type arg_elem struct {
-	name     string // variable name
-	var_type string // variable type
-	ellipsis bool   // ...type
-}
-
-// traverse all files for instrumentation
-func instrument_files() error {
-	for _, file := range file_names {
+/*
+Function to perform instrumentation of all list of files
+@param file_paths []string: list of file names to instrument
+@return error: error or nil
+*/
+func instrument_files(file_paths []string) error {
+	for _, file := range file_paths {
 		err := instrument_file(file)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to instrument file %s.\n", file)
@@ -57,7 +54,11 @@ func instrument_files() error {
 	return nil
 }
 
-// instrument file at given path and print to output
+/*
+Function to instrument a given file.
+@param file_path string: path to the file
+@return error: error or nil
+*/
 func instrument_file(file_path string) error {
 	// create output file
 	output_file, err := os.Create(out + file_path)
@@ -92,7 +93,11 @@ func instrument_file(file_path string) error {
 	return nil
 }
 
-// instrument the given file in “in + file_path”
+/*
+Function to instrument a go file.
+@param file_path string: path to the file
+@return error: error or nil
+*/
 func instrument_go_file(file_path string) error {
 	// get the ASP of the file
 	astSet := token.NewFileSet()
@@ -105,16 +110,12 @@ func instrument_go_file(file_path string) error {
 
 	fmt.Printf("Instrument file: %s\n", file_path)
 
-	// if file_path == "Examples/go-dsp/fft/radix2.go" {
-	// 	ast.Print(astSet, f)
-	// }
-
 	if instrumentChan {
-		instrument_chan(astSet, f)
+		instrument_chan(f)
 	}
 
 	if instrumentMutex {
-		instrument_mutex(astSet, f)
+		instrument_mutex(f)
 	}
 
 	// print changed ast to output file
@@ -130,5 +131,4 @@ func instrument_go_file(file_path string) error {
 	}
 
 	return nil
-
 }

@@ -24,8 +24,8 @@ Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 */
 
 /*
-instrumenter.go
-instrument files to work with the "github.com/ErikKassubek/GoChan/tracer" library
+instrumentChan.go
+Instrument channels to work with the "github.com/ErikKassubek/GoChan/tracer" library
 */
 
 import (
@@ -38,10 +38,17 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-// instrument a given ast file f
-func instrument_chan(astSet *token.FileSet, f *ast.File) error {
+/*
+Function to instrument a given ast.File with channels. Channels and operation
+of this channels are replaced by there tracer equivalent.
+@param f *ast.File: ast file to instrument
+@return error: error or nil
+*/
+func instrument_chan(f *ast.File) error {
+	// add the import of the tracer library
 	add_tracer_import(f)
 
+	// first pass-through to instrument main function and function declarations
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
@@ -53,39 +60,40 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 				}
 				add_init_call(n)
 			} else {
-				instrument_function_declarations(astSet, n, c)
+				instrument_function_declarations(n, c)
 			}
 		}
 		return true
 	})
 
+	// second pass-through to instrument everything else
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
 
 		switch n := n.(type) {
-		case *ast.GenDecl: // add import of tracer lib if other libs get imported
-			instrument_gen_decl(astSet, n, c)
+		case *ast.GenDecl: // instrument declarations of structs, interfaces, chan.
+			instrument_gen_decl(n, c)
 		case *ast.AssignStmt: // handle assign statements
 			switch n.Rhs[0].(type) {
 			case *ast.CallExpr: // call expression
-				instrument_call_expressions(astSet, n)
+				instrument_call_expressions(n)
 			case *ast.UnaryExpr: // receive with assign
-				instrument_receive_with_assign(astSet, n, c)
+				instrument_receive_with_assign(n, c)
 			case *ast.CompositeLit: // creation of struct
-				instrument_assign_struct(astSet, n)
+				instrument_assign_struct(n)
 			}
 		case *ast.SendStmt: // handle send messages
-			instrument_send_statement(astSet, n, c)
+			instrument_send_statement(n, c)
 		case *ast.ExprStmt: // handle receive and close
-			instrument_expression_statement(astSet, n, c)
+			instrument_expression_statement(n, c)
 		case *ast.DeferStmt: // handle defer
-			instrument_defer_statement(astSet, n, c)
+			instrument_defer_statement(n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
-			instrument_go_statements(astSet, n, c)
+			instrument_go_statements(n, c)
 		case *ast.SelectStmt: // handel select statements
-			instrument_select_statements(astSet, n, c)
+			instrument_select_statements(n, c)
 		case *ast.RangeStmt: // range
-			instrument_range_stm(astSet, n)
+			instrument_range_stm(n)
 		}
 
 		return true
@@ -94,7 +102,11 @@ func instrument_chan(astSet *token.FileSet, f *ast.File) error {
 	return nil
 }
 
-// add tracer lib import
+/*
+Function to add the import of the tracer library
+@param n *ast.File: ast file to instrument
+@return nil
+*/
 func add_tracer_import(n *ast.File) {
 	import_spec := &ast.ImportSpec{
 		Path: &ast.BasicLit{
@@ -133,6 +145,13 @@ func add_tracer_import(n *ast.File) {
 	n.Decls[0].(*ast.GenDecl).Specs = append(n.Decls[0].(*ast.GenDecl).Specs, import_spec)
 }
 
+/*
+Function to add call of tracer.Init(), defer time.Sleep(time.Millisecond)
+and defer tracer.PrintTrace() to the main function. The time.Sleep call is used
+to give the go routines a chance to finish there execution.
+@param n *ast.FuncDecl: node of the main function declaration of the ast
+@return nil
+*/
 func add_init_call(n *ast.FuncDecl) {
 	body := n.Body.List
 	if body == nil {
@@ -178,13 +197,19 @@ func add_show_trace_call(n *ast.FuncDecl) {
 
 }
 
-func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Cursor) {
+/*
+Function to instrument the declarations of channels, structs and interfaces.
+@param n *ast.GenDecl: node of the declaration in the ast
+@param c *astutil.Cursor: cursor that traverses the ast
+@return nil
+*/
+func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
 	for i, s := range n.Specs {
 		switch s_type := s.(type) {
 		case *ast.ValueSpec:
 			switch t_type := s_type.Type.(type) {
 			case *ast.ChanType:
-				type_val := get_name(astSet, t_type.Value)
+				type_val := get_name(t_type.Value)
 				n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
 					Name: "= tracer.NewChan[" + type_val + "](0)",
 				}
@@ -195,7 +220,7 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 				for j, t := range s_type_type.Fields.List {
 					switch t_type := t.Type.(type) {
 					case *ast.ChanType:
-						type_val := get_name(astSet, t_type.Value)
+						type_val := get_name(t_type.Value)
 						n.Specs[i].(*ast.TypeSpec).Type.(*ast.StructType).Fields.List[j].Type = &ast.Ident{
 							Name: "tracer.Chan[" + type_val + "]",
 						}
@@ -205,8 +230,8 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 				for _, t := range s_type_type.Methods.List {
 					switch t_type := t.Type.(type) {
 					case *ast.FuncType:
-						instrument_function_declaration_return_values(astSet, t_type)
-						instrument_function_declaration_parameter(astSet, t_type)
+						instrument_function_declaration_return_values(t_type)
+						instrument_function_declaration_parameter(t_type)
 					}
 				}
 			}
@@ -215,14 +240,23 @@ func instrument_gen_decl(astSet *token.FileSet, n *ast.GenDecl, c *astutil.Curso
 	}
 }
 
-func instrument_function_declarations(astSet *token.FileSet, n *ast.FuncDecl, c *astutil.Cursor) {
-	instrument_function_declaration_return_values(astSet, n.Type)
-	instrument_function_declaration_parameter(astSet, n.Type)
+/*
+Function to instrument function declarations.
+@param n *ast.FuncDecl: node of the func declaration in the ast
+@param c *astutil.Cursor: cursor that traverses the ast
+@return nil
+*/
+func instrument_function_declarations(n *ast.FuncDecl, c *astutil.Cursor) {
+	instrument_function_declaration_return_values(n.Type)
+	instrument_function_declaration_parameter(n.Type)
 }
 
-// change the return value of functions if they contain a chan
-func instrument_function_declaration_return_values(astSet *token.FileSet,
-	n *ast.FuncType) {
+/*
+Function to change the return value of functions if they contain a chan.
+@param n *ast.FuncType: node of the func type in the ast
+@return nil
+*/
+func instrument_function_declaration_return_values(n *ast.FuncType) {
 	astResult := n.Results
 
 	// do nothing if the functions does not have return values
@@ -239,7 +273,7 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 		}
 
 		translated_string := ""
-		name := get_name(astSet, res.Type.(*ast.ChanType).Value)
+		name := get_name(res.Type.(*ast.ChanType).Value)
 		translated_string = "tracer.Chan[" + name + "]"
 
 		// set the translated value
@@ -251,8 +285,12 @@ func instrument_function_declaration_return_values(astSet *token.FileSet,
 	}
 }
 
-// instrument all function parameter
-func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.FuncType) {
+/*
+Function to instrument the parameter value of functions if they contain a chan.
+@param n *ast.FuncType: node of the func type in the ast
+@return nil
+*/
+func instrument_function_declaration_parameter(n *ast.FuncType) {
 	astResult := n.Params
 
 	// do nothing if the functions does not have return values
@@ -288,13 +326,13 @@ func instrument_function_declaration_parameter(astSet *token.FileSet, n *ast.Fun
 	}
 }
 
-func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c *astutil.Cursor) {
+func instrument_receive_with_assign(n *ast.AssignStmt, c *astutil.Cursor) {
 	if n.Rhs[0].(*ast.UnaryExpr).Op != token.ARROW {
 		return
 	}
 
-	variable := get_name(astSet, n.Lhs[0])
-	channel := get_name(astSet, n.Rhs[0].(*ast.UnaryExpr).X)
+	variable := get_name(n.Lhs[0])
+	channel := get_name(n.Rhs[0].(*ast.UnaryExpr).X)
 
 	token := n.Tok
 	c.Replace(&ast.AssignStmt{
@@ -315,7 +353,7 @@ func instrument_receive_with_assign(astSet *token.FileSet, n *ast.AssignStmt, c 
 }
 
 // instrument creation of struct
-func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
+func instrument_assign_struct(n *ast.AssignStmt) {
 	for i, t := range n.Rhs[0].(*ast.CompositeLit).Elts {
 		switch t.(type) {
 		case *(ast.KeyValueExpr):
@@ -329,7 +367,7 @@ func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
 		}
 
 		t_type := t.(*ast.KeyValueExpr).Value.(*ast.CallExpr)
-		if get_name(astSet, t_type.Fun) != "make" {
+		if get_name(t_type.Fun) != "make" {
 			continue
 		}
 
@@ -339,10 +377,10 @@ func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
 			continue
 		}
 
-		name := get_name(astSet, t_type.Args[0].(*ast.ChanType).Value)
+		name := get_name(t_type.Args[0].(*ast.ChanType).Value)
 		size := "0"
 		if len(t_type.Args) > 1 {
-			size = get_name(astSet, t_type.Args[1])
+			size = get_name(t_type.Args[1])
 		}
 
 		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Fun = &ast.Ident{Name: "tracer.NewChan[" + name + "]"}
@@ -351,7 +389,7 @@ func instrument_assign_struct(astSet *token.FileSet, n *ast.AssignStmt) {
 }
 
 // instrument range over channel
-func instrument_range_stm(astSet *token.FileSet, n *ast.RangeStmt) {
+func instrument_range_stm(n *ast.RangeStmt) {
 	// switch n.Rhs[0].Body.List
 	switch n.Key.(type) {
 	case *ast.Ident:
@@ -359,7 +397,11 @@ func instrument_range_stm(astSet *token.FileSet, n *ast.RangeStmt) {
 		return
 	}
 
-	varName := get_name(astSet, n.Key.(*ast.Ident))
+	varName := get_name(n.Key.(*ast.Ident))
+
+	if n.Key.(*ast.Ident).Obj == nil {
+		return
+	}
 
 	switch n.Key.(*ast.Ident).Obj.Decl.(type) {
 	case *ast.AssignStmt:
@@ -379,13 +421,33 @@ func instrument_range_stm(astSet *token.FileSet, n *ast.RangeStmt) {
 		return
 	}
 
-	chanName := get_name(astSet, r.(*ast.UnaryExpr).X)
+	chanName := get_name(r.(*ast.UnaryExpr).X)
 	chanType := ""
-	switch decl_type := r.(*ast.UnaryExpr).X.(*ast.Ident).Obj.Decl.(type) {
-	case *ast.AssignStmt:
-		chanType = get_name(astSet, decl_type.Rhs[0].(*ast.CallExpr))
-	default:
-		return
+	switch x_type := r.(*ast.UnaryExpr).X.(type) {
+	case *ast.Ident:
+		switch decl_type := x_type.Obj.Decl.(type) {
+		case *ast.AssignStmt:
+			switch rhs_type := decl_type.Rhs[0].(type) {
+			case *ast.CallExpr, *ast.UnaryExpr:
+				chanType = get_name(rhs_type)
+			}
+		default:
+			return
+		}
+	case *ast.SelectorExpr:
+		unrev := unravel_selector_expr(x_type)
+		if unrev == nil {
+			return
+		}
+		switch decl_type := unrev.Obj.Decl.(type) {
+		case *ast.AssignStmt:
+			switch rhs_type := decl_type.Rhs[0].(type) {
+			case *ast.CallExpr, *ast.UnaryExpr:
+				chanType = get_name(rhs_type)
+			}
+		default:
+			return
+		}
 	}
 
 	if len(chanType) < 17 {
@@ -409,7 +471,7 @@ func instrument_range_stm(astSet *token.FileSet, n *ast.RangeStmt) {
 }
 
 // instrument if n is a call expression
-func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
+func instrument_call_expressions(n *ast.AssignStmt) {
 	// check make functions
 	callExp := n.Rhs[0].(*ast.CallExpr)
 
@@ -419,14 +481,14 @@ func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 		return
 	}
 
-	if get_name(astSet, callExp.Fun) == "make" {
+	if get_name(callExp.Fun) == "make" {
 		switch callExp.Args[0].(type) {
 		// make creates a channel
 		case *ast.ChanType:
 			// get type of channel
 
 			callExpVal := callExp.Args[0].(*ast.ChanType).Value
-			chanType := get_name(astSet, callExpVal)
+			chanType := get_name(callExpVal)
 
 			// set size of channel
 			chanSize := "0"
@@ -455,9 +517,9 @@ func instrument_call_expressions(astSet *token.FileSet, n *ast.AssignStmt) {
 }
 
 // instrument a send statement
-func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astutil.Cursor) {
+func instrument_send_statement(n *ast.SendStmt, c *astutil.Cursor) {
 	// get the channel name
-	channel := get_name(astSet, n.Chan)
+	channel := get_name(n.Chan)
 
 	value := ""
 
@@ -480,28 +542,27 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 		case *ast.StructType:
 			value = "struct{}{}"
 		case *ast.ArrayType:
-			value = "[]" + get_name(astSet, lit_type.Elt) + "{" + get_name(astSet, lit.Elts[0]) + "}"
+			value = "[]" + get_name(lit_type.Elt) + "{" + get_name(lit.Elts[0]) + "}"
 		}
 	case *ast.SelectorExpr:
-		value = get_selector_expression_name(astSet, lit)
+		value = get_selector_expression_name(lit)
 	case *ast.UnaryExpr:
 		arg_string := ""
 		for _, a := range lit.X.(*ast.CompositeLit).Elts {
-			arg_string += get_name(astSet, a) + ","
+			arg_string += get_name(a) + ","
 		}
 		switch t_type := lit.X.(*ast.CompositeLit).Type.(type) {
 		case *ast.Ident:
 			value = lit.Op.String() + t_type.Name + "{" + arg_string + "}"
 		case *ast.SelectorExpr:
-			value = lit.Op.String() + get_selector_expression_name(astSet, t_type) + "{" + arg_string + "}"
+			value = lit.Op.String() + get_selector_expression_name(t_type) + "{" + arg_string + "}"
 
 		}
 	case *ast.FuncLit:
 		func_lit = true
 	case *ast.IndexExpr:
-		value = get_name(astSet, lit.X) + "[" + get_name(astSet, lit.Index)
+		value = get_name(lit.X) + "[" + get_name(lit.Index)
 	default:
-		ast.Print(astSet, v)
 		errString := fmt.Sprintf("Unknown type %T in instrument_send_statement2", v)
 		panic(errString)
 	}
@@ -564,28 +625,27 @@ func instrument_send_statement(astSet *token.FileSet, n *ast.SendStmt, c *astuti
 }
 
 // instrument receive and call statements
-func instrument_expression_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astutil.Cursor) {
+func instrument_expression_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X
 	switch x_part.(type) {
 	case *ast.UnaryExpr:
-		instrument_receive_statement(astSet, n, c)
+		instrument_receive_statement(n, c)
 	case *ast.CallExpr:
-		instrument_close_statement(astSet, n, c)
+		instrument_close_statement(n, c)
 	case *ast.TypeAssertExpr:
 	default:
-		ast.Print(astSet, x_part)
 		errString := fmt.Sprintf("Unknown type %T in instrument_expression_statement", x_part)
 		panic(errString)
 	}
 }
 
 // instrument defer state,emt
-func instrument_defer_statement(astSet *token.FileSet, n *ast.DeferStmt, c *astutil.Cursor) {
+func instrument_defer_statement(n *ast.DeferStmt, c *astutil.Cursor) {
 	x_call := n.Call.Fun
 	switch fun_type := x_call.(type) {
 	case *ast.Ident:
-		if fun_type.Name == "close" {
-			name := get_name(astSet, n.Call.Args[0])
+		if fun_type.Name == "close" && len(n.Call.Args) > 0 {
+			name := get_name(n.Call.Args[0])
 			c.Replace(&ast.DeferStmt{
 				Call: &ast.CallExpr{
 					Fun: &ast.Ident{
@@ -598,7 +658,7 @@ func instrument_defer_statement(astSet *token.FileSet, n *ast.DeferStmt, c *astu
 }
 
 // instrument receive statements
-func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astutil.Cursor) {
+func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X.(*ast.UnaryExpr)
 
 	// check if correct operation
@@ -606,17 +666,15 @@ func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *ast
 		return
 	}
 
-	// ast.Print(astSet, x_part.X)
-
 	// get channel name
 	var channel string
 	switch x_part_x := x_part.X.(type) {
 	case *ast.Ident:
 		channel = x_part_x.Name
 	case *ast.CallExpr:
-		channel = get_name(astSet, x_part_x)
+		channel = get_name(x_part_x)
 	case *ast.SelectorExpr:
-		channel = get_selector_expression_name(astSet, x_part_x)
+		channel = get_selector_expression_name(x_part_x)
 	default:
 		errString := fmt.Sprintf("Unknown type %T in instrument_receive_statement", x_part)
 		panic(errString)
@@ -637,7 +695,7 @@ func instrument_receive_statement(astSet *token.FileSet, n *ast.ExprStmt, c *ast
 }
 
 // change close statements to tracer.Close
-func instrument_close_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astutil.Cursor) {
+func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X.(*ast.CallExpr)
 
 	// return if not ident
@@ -655,7 +713,7 @@ func instrument_close_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astut
 		return
 	}
 
-	channel := get_name(astSet, x_part.Args[0])
+	channel := get_name(x_part.Args[0])
 	c.Replace(&ast.ExprStmt{
 		X: &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
@@ -671,7 +729,7 @@ func instrument_close_statement(astSet *token.FileSet, n *ast.ExprStmt, c *astut
 }
 
 // instrument the creation of new go routines
-func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.Cursor) {
+func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 	var_name := "GoChanRoutineIndex"
 
 	var func_body *ast.BlockStmt
@@ -693,7 +751,6 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 		}
 
 	default:
-		ast.Print(astSet, n.Call.Fun)
 		fmt.Printf("Unknown Type %T in instrument_go_statement", n.Call.Fun)
 	}
 
@@ -707,8 +764,8 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 	fc := n.Call.Fun
 	switch fc_type := fc.(type) {
 	case *ast.FuncLit: // go with lambda
-		instrument_function_declaration_return_values(astSet, fc_type.Type)
-		instrument_function_declaration_parameter(astSet, fc_type.Type)
+		instrument_function_declaration_return_values(fc_type.Type)
+		instrument_function_declaration_parameter(fc_type.Type)
 	default:
 		n.Call.Args = nil
 	}
@@ -777,7 +834,7 @@ func instrument_go_statements(astSet *token.FileSet, n *ast.GoStmt, c *astutil.C
 }
 
 // instrument select statements
-func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur *astutil.Cursor) {
+func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 	// collect cases and replace <-i with i.GetChan()
 	caseNodes := n.Body.List
 	cases := make([]string, 0)
@@ -818,7 +875,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 			f := c_type.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr)
 
 			if f.Sel.Name == "Receive" {
-				name = get_name(astSet, f.X)
+				name = get_name(f.X)
 				cases = append(cases, name)
 				assign_name = "sel_" + randStr(8)
 				cases_receive = append(cases_receive, "true")
@@ -830,14 +887,14 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 					},
 				}
 			} else if f.Sel.Name == "Send" {
-				name = get_name(astSet, f.X)
+				name = get_name(f.X)
 				cases = append(cases, name)
 
 				assign_name = "sel_" + randStr(8)
 				cases_receive = append(cases_receive, "false")
 				rec = "false"
 
-				arg_val := get_name(astSet, c_type.X.(*ast.CallExpr).Args[0])
+				arg_val := get_name(c_type.X.(*ast.CallExpr).Args[0])
 				sendVar = append(sendVar, struct {
 					assign_name string
 					message     string
@@ -852,7 +909,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 
 		case *ast.AssignStmt: // receive with assign
 			assign_name = "sel_" + randStr(10)
-			assigned_name := get_name(astSet, c_type.Lhs[0])
+			assigned_name := get_name(c_type.Lhs[0])
 			cases_receive = append(cases_receive, "true")
 			rec = "true"
 
@@ -956,7 +1013,7 @@ func instrument_select_statements(astSet *token.FileSet, n *ast.SelectStmt, cur 
 }
 
 // get name
-func get_name(astSet *token.FileSet, n ast.Expr) string {
+func get_name(n ast.Expr) string {
 	if n == nil {
 		return ""
 	}
@@ -964,55 +1021,55 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 	case *ast.Ident:
 		return n_type.Name
 	case *ast.SelectorExpr:
-		return get_selector_expression_name(astSet, n_type)
+		return get_selector_expression_name(n_type)
 	case *ast.StarExpr:
-		return "*" + get_name(astSet, n.(*ast.StarExpr).X)
+		return "*" + get_name(n.(*ast.StarExpr).X)
 	case *ast.CallExpr:
 		arguments := make([]string, 0)
 		for _, a := range n.(*ast.CallExpr).Args {
-			arguments = append(arguments, get_name(astSet, a))
+			arguments = append(arguments, get_name(a))
 		}
-		name := get_name(astSet, n.(*ast.CallExpr).Fun) + "("
+		name := get_name(n.(*ast.CallExpr).Fun) + "("
 		for _, a := range arguments {
 			name += a + ", "
 		}
 		name += ")"
 		return name
 	case *ast.ParenExpr:
-		return get_name(astSet, n_type.X)
+		return get_name(n_type.X)
 	case *ast.TypeAssertExpr:
-		return get_name(astSet, n_type.Type)
+		return get_name(n_type.Type)
 	case *ast.FuncType:
 		name := "func("
 		if n_type.Params != nil {
 			for _, a := range n_type.Params.List {
-				name += get_name(astSet, a.Type) + ", "
+				name += get_name(a.Type) + ", "
 			}
 		}
 		name += ")"
 		if n_type.Results != nil {
 			name += "("
 			for _, a := range n_type.Results.List {
-				name += get_name(astSet, a.Type) + ", "
+				name += get_name(a.Type) + ", "
 			}
 			name += ")"
 		}
 		return name
 	case *ast.FuncLit:
-		return get_name(astSet, n_type.Type)
+		return get_name(n_type.Type)
 	case *ast.InterfaceType:
 		return "interface{}"
 	case *ast.ArrayType:
-		return "[]" + get_name(astSet, n_type.Elt)
+		return "[]" + get_name(n_type.Elt)
 	case *ast.BasicLit:
 		return n_type.Value
 	case *ast.ChanType:
-		return "chan " + get_name(astSet, n_type.Value)
+		return "chan " + get_name(n_type.Value)
 	case *ast.StructType:
 		var struct_elem string
 		for i, elem := range n_type.Fields.List {
 			if len(elem.Names) > 0 {
-				struct_elem += get_name(astSet, elem.Names[0]) + " " + get_name(astSet, elem.Type)
+				struct_elem += get_name(elem.Names[0]) + " " + get_name(elem.Type)
 				if i == len(n_type.Fields.List)-1 {
 					struct_elem += ", "
 				}
@@ -1020,24 +1077,25 @@ func get_name(astSet *token.FileSet, n ast.Expr) string {
 		}
 		return "struct{" + struct_elem + "}"
 	case *ast.IndexExpr:
-		return get_name(astSet, n_type.X) + "[" + get_name(astSet, n_type.Index) + "]"
+		return get_name(n_type.X) + "[" + get_name(n_type.Index) + "]"
 	case *ast.BinaryExpr:
-		return get_name(astSet, n_type.X) + n_type.Op.String() + get_name(astSet, n_type.Y)
+		return get_name(n_type.X) + n_type.Op.String() + get_name(n_type.Y)
 	case *ast.UnaryExpr:
-		return n_type.Op.String() + get_name(astSet, n_type.X)
+		return n_type.Op.String() + get_name(n_type.X)
 	case *ast.MapType:
-		return "map[" + get_name(astSet, n_type.Key) + "]" + get_name(astSet, n_type.Value)
+		return "map[" + get_name(n_type.Key) + "]" + get_name(n_type.Value)
 	case *ast.Ellipsis:
-		return "..." + get_name(astSet, n_type.Elt)
+		return "..." + get_name(n_type.Elt)
+	case *ast.CompositeLit:
+		return get_name(n_type.Type)
 	default:
-		ast.Print(astSet, n)
-		panic(fmt.Sprintf("Could not get name of type %T\n", n))
+		return ""
 	}
 }
 
 // get the full name of an selector expression
-func get_selector_expression_name(astSet *token.FileSet, n *ast.SelectorExpr) string {
-	return get_name(astSet, n.X) + "." + n.Sel.Name
+func get_selector_expression_name(n *ast.SelectorExpr) string {
+	return get_name(n.X) + "." + n.Sel.Name
 }
 
 // get random string of length n
@@ -1048,4 +1106,14 @@ func randStr(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func unravel_selector_expr(n *ast.SelectorExpr) *ast.Ident {
+	switch x_type := n.X.(type) {
+	case *ast.SelectorExpr:
+		return unravel_selector_expr(x_type)
+	case *ast.Ident:
+		return x_type
+	}
+	return nil
 }
