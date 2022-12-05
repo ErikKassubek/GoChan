@@ -35,9 +35,8 @@ Main function to run the analyzer. The running of the analyzer locks
 tracesLock for the total duration of its runtime, to prevent go-routines,
 that are still running when the main function terminated (and therefore would
 normally also be terminated) to alter the trace.
-@return bool: false if problems have been found, true otherwise
 */
-func RunAnalyzer() bool {
+func RunAnalyzer() {
 	fmt.Print("Start Programm analysis...\n\n")
 	tracesLock.Lock()
 
@@ -64,7 +63,7 @@ func RunAnalyzer() bool {
 	tracesLock.Unlock()
 
 	// print res Strings
-	if len(resString) == 0 {
+	if !res {
 		fmt.Println("No Problems Detected")
 	} else {
 		fmt.Printf("%d Problems Detected\n\n", len(resString))
@@ -73,6 +72,4 @@ func RunAnalyzer() bool {
 			fmt.Print("\n\n\n")
 		}
 	}
-
-	return res
 }
