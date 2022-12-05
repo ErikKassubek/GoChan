@@ -47,7 +47,7 @@ func analyzeMutexDeadlock() (bool, []string) {
 	resString := make([]string, 0)
 
 	// build the graph and check for double locking
-	r, s := buildGraphAndCheckDoubleLocking()
+	r, s := buildGraph()
 	res = res || r
 	resString = append(resString, s...)
 
@@ -67,7 +67,7 @@ func analyzeMutexDeadlock() (bool, []string) {
 /*
 Build a lock-graph from the trace.
 */
-func buildGraphAndCheckDoubleLocking() (bool, []string) {
+func buildGraph() (bool, []string) {
 	lockGraph = make([][]dependency, len(traces))
 	res := false
 	resString := make([]string, 0)
@@ -78,14 +78,6 @@ func buildGraphAndCheckDoubleLocking() (bool, []string) {
 		for _, elem := range trace {
 			switch e := elem.(type) {
 			case *TraceLock:
-				// check for double locking
-				for _, lock := range currentHoldLocks {
-					if lock.(*TraceLock).lockId == e.lockId && (!lock.(*TraceLock).read || !e.read) {
-						res = true
-						resString = append(resString, fmt.Sprintf("Double Mutex Locking:\n  %s\n  %s", lock.(*TraceLock).position, e.position))
-					}
-				}
-
 				// add dependency to graph and lock to currentHoldLocks
 				if len(currentHoldLocks) > 0 {
 					lockGraph[index] = append(lockGraph[index], newDependency(e, currentHoldLocks))
@@ -103,7 +95,7 @@ func buildGraphAndCheckDoubleLocking() (bool, []string) {
 		// check if a lock was still locked at the end
 		for _, l := range currentHoldLocks {
 			res = false
-			resString = append(resString, fmt.Sprintf("Mutex Not Freed:\n  %s", l.(*TraceLock).position))
+			resString = append(resString, fmt.Sprintf("Locked Mutex Not Freed:\n  %s", l.(*TraceLock).position))
 		}
 	}
 

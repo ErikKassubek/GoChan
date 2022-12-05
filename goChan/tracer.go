@@ -68,7 +68,7 @@ func Init() {
 	routineIndex[goid.Get()] = 0
 	routineIndexLock.Unlock()
 
-	go func() { t := time.NewTimer(10 * time.Second); <-t.C; PrintTrace() }()
+	go func() { t := time.NewTimer(10 * time.Second); <-t.C; RunAnalyzer() }()
 }
 
 /*
