@@ -237,6 +237,7 @@ func isChain(stack *depStack, dep *dependency, routineIndex int) bool {
 	// holding set of dep
 	found := false
 	for _, mutexInHs := range dep.holdingSet {
+		fmt.Println(mutexInHs, stack.top.depEntry.mu)
 		if mutexInHs.(*TraceLock).lockId == stack.top.depEntry.mu.(*TraceLock).lockId {
 			// if mutexInHs is read, the mutex at the top of the stack can not also be read
 			if !(mutexInHs.(*TraceLock).read && stack.top.depEntry.mu.(*TraceLock).read) {
