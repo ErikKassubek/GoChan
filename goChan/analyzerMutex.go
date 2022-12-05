@@ -143,6 +143,7 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 			// push the dependency on the stack as first element of the currently
 			// explored path
 			stack.push(&dep, i)
+			fmt.Print(&dep)
 
 			// start the depth-first search to find potential circular paths
 			r, rs := dfs(&stack, visiting, &isTraversed)
