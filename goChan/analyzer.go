@@ -43,16 +43,16 @@ func RunAnalyzer() {
 	res := false
 	resString := make([]string, 0)
 
-	for _, trace := range traces {
-		print("[")
-		for i, element := range trace {
-			element.PrintElement()
-			if i != len(trace)-1 {
-				print(", ")
-			}
-		}
-		println("]")
-	}
+	// for _, trace := range traces {
+	// 	print("[")
+	// 	for i, element := range trace {
+	// 		element.PrintElement()
+	// 		if i != len(trace)-1 {
+	// 			print(", ")
+	// 		}
+	// 	}
+	// 	println("]")
+	// }
 
 	// analyze the trace for potential deadlocks including only mutexe based
 	// on
@@ -69,7 +69,7 @@ func RunAnalyzer() {
 		fmt.Printf("%d Problems Detected\n\n", len(resString))
 		for _, prob := range resString {
 			fmt.Println(prob)
-			fmt.Print("\n\n\n")
+			fmt.Print("\n")
 		}
 	}
 }
