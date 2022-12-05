@@ -87,7 +87,9 @@ func buildGraphAndCheckDoubleLocking() (bool, []string) {
 				}
 
 				// add dependency to graph and lock to currentHoldLocks
-				lockGraph[index] = append(lockGraph[index], newDependency(e, currentHoldLocks))
+				if len(currentHoldLocks) > 0 {
+					lockGraph[index] = append(lockGraph[index], newDependency(e, currentHoldLocks))
+				}
 				currentHoldLocks = append(currentHoldLocks, e)
 				noDep++
 			case *TraceUnlock: // remove lock from currently hold locks
