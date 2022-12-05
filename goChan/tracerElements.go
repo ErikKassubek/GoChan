@@ -22,13 +22,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
 
 /*
-traceElements.go
+tracerElements.go
 Type declarations for the trace elements
 */
 
@@ -44,10 +44,12 @@ type TraceElement interface {
 
 /*
 Struct for a signal in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field routine uint32: id of the new routine
 */
 type TraceSignal struct {
+	position  string
 	timestamp uint32
 	routine   uint32
 }
@@ -63,10 +65,12 @@ func (ts *TraceSignal) PrintElement() {
 
 /*
 Struct for a wait in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field routine uint32: id of the routine
 */
 type TraceWait struct {
+	position  string
 	timestamp uint32
 	routine   uint32
 }
@@ -82,11 +86,13 @@ func (tw *TraceWait) PrintElement() {
 
 /*
 Struct for a pre in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
 @field send bool: true if it is a preSend, false otherwise
 */
 type TracePre struct {
+	position  string
 	timestamp uint32
 	chanId    uint32
 	send      bool
@@ -107,6 +113,7 @@ func (tp *TracePre) PrintElement() {
 
 /*
 Struct for a post in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
 @field send bool: true if it is a preSend, false otherwise
@@ -114,6 +121,7 @@ Struct for a post in the trace.
 @field senderTimestamp: timestamp of the sender at send
 */
 type TracePost struct {
+	position        string
 	timestamp       uint32
 	chanId          uint32
 	send            bool
@@ -138,10 +146,12 @@ func (tp *TracePost) PrintElement() {
 
 /*
 Struct for a close in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
 */
 type TraceClose struct {
+	position  string
 	timestamp uint32
 	chanId    uint32
 }
@@ -157,11 +167,13 @@ func (tc *TraceClose) PrintElement() {
 
 /*
 Struct for a preSelect in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanIds []PreObj: list of channels in cases
 @field def bool: true if the select has a default case, false otherwise
 */
 type TracePreSelect struct {
+	position  string
 	timestamp uint32
 	chanIds   []PreObj
 	def       bool // true if select has default case
@@ -192,9 +204,11 @@ func (tps *TracePreSelect) PrintElement() {
 
 /*
 Struct for a default in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 */
 type TraceDefault struct {
+	position  string
 	timestamp uint32
 }
 
@@ -211,6 +225,7 @@ func (td *TraceDefault) PrintElement() {
 
 /*
 Struct for a lock in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field lockId uint32: id of the Mutex
 @field try bool: true if it is a try-lock, false otherwise
@@ -218,6 +233,7 @@ Struct for a lock in the trace.
 @field suc bool: true if the operation was successful, false otherwise (only try)
 */
 type TraceLock struct {
+	position  string
 	timestamp uint32
 	lockId    uint32
 	try       bool
@@ -252,10 +268,12 @@ func (tl *TraceLock) PrintElement() {
 
 /*
 Struct for a unlock in the trace.
+@field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field lockId uint32: id of the Mutex
 */
 type TraceUnlock struct {
+	position  string
 	timestamp uint32
 	lockId    uint32
 }

@@ -22,13 +22,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
 
 /*
-channel.go
+tracerChannel.go
 Drop in replacements for channels and send and receive functions
 */
 
@@ -133,10 +133,11 @@ func (ch *Chan[T]) Send(val T) {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(1)
 
 	// add pre event to tracer
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePre{timestamp: timestamp,
+	traces[index] = append(traces[index], &TracePre{position: position, timestamp: timestamp,
 		chanId: ch.id, send: true})
 	tracesLock.Unlock()
 
@@ -147,7 +148,7 @@ func (ch *Chan[T]) Send(val T) {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePost{chanId: ch.id, send: true,
+	traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, send: true,
 		senderId: index, timestamp: atomic.AddUint32(&counter, 1)})
 	tracesLock.Unlock()
 }
@@ -161,16 +162,17 @@ func (ch *Chan[T]) Receive() T {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(1)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePre{timestamp: timestamp,
-		chanId: ch.id, send: false})
+	traces[index] = append(traces[index], &TracePre{position: position,
+		timestamp: timestamp, chanId: ch.id, send: false})
 	tracesLock.Unlock()
 
 	res := <-ch.c
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePost{
+	traces[index] = append(traces[index], &TracePost{position: position,
 		timestamp: atomic.AddUint32(&counter, 1), chanId: ch.id, send: false,
 		senderId: res.sender, senderTimestamp: res.senderTimestamp})
 	tracesLock.Unlock()
@@ -185,11 +187,12 @@ Function as drop-in replacement for closing a channel.
 func (ch *Chan[T]) Close() {
 	index := getIndex()
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(1)
 
 	close(ch.c)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceClose{timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceClose{position: position, timestamp: timestamp,
 		chanId: ch.id})
 	tracesLock.Unlock()
 }

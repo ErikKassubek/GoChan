@@ -18,7 +18,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
@@ -30,6 +30,8 @@ Program
 */
 
 import (
+	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -98,4 +100,14 @@ func getIndex() uint32 {
 	res := routineIndex[id]
 	routineIndexLock.Unlock()
 	return res
+}
+
+/*
+Function to get the position of the original caller in the code
+@param skip int: no. off calls to skip, 0 is the caller of getPosition
+@return string: position
+*/
+func getPosition(skip int) string {
+	_, file, line, _ := runtime.Caller(skip + 1)
+	return file + fmt.Sprintf(":%d", line)
 }

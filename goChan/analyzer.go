@@ -1,5 +1,7 @@
 package goChan
 
+import "fmt"
+
 /*
 Copyright (c) 2022, Erik Kassubek
 All rights reserved.
@@ -18,7 +20,59 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
+
+/*
+analyzer.go
+Main functions to start the analyzer
+*/
+
+/*
+Main function to run the analyzer. The running of the analyzer locks
+tracesLock for the total duration of its runtime, to prevent go-routines,
+that are still running when the main function terminated (and therefore would
+normally also be terminated) to alter the trace.
+@return bool: false if problems have been found, true otherwise
+*/
+func RunAnalyzer() bool {
+	fmt.Print("Start Programm analysis...\n\n")
+	tracesLock.Lock()
+
+	res := false
+	resString := make([]string, 0)
+
+	for _, trace := range traces {
+		print("[")
+		for i, element := range trace {
+			element.PrintElement()
+			if i != len(trace)-1 {
+				print(", ")
+			}
+		}
+		println("]")
+	}
+
+	// analyze the trace for potential deadlocks including only mutexe based
+	// on
+	r, rs := analyzeMutexDeadlock()
+	res = res || r
+	resString = append(resString, rs...)
+
+	tracesLock.Unlock()
+
+	// print res Strings
+	if len(resString) == 0 {
+		fmt.Println("No Problems Detected")
+	} else {
+		fmt.Printf("%d Problems Detected\n\n", len(resString))
+		for _, prob := range resString {
+			fmt.Println(prob)
+			fmt.Print("\n\n\n")
+		}
+	}
+
+	return res
+}

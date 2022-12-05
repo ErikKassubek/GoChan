@@ -24,13 +24,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
 
 /*
-spawn.go
+tracerRoutine.go
 Drop in replacements to create and start a new go routine
 */
 
@@ -43,9 +43,10 @@ func SpawnPre() uint32 {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(1)
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceSignal{timestamp: timestamp, routine: nr})
+	traces[index] = append(traces[index], &TraceSignal{position: position, timestamp: timestamp, routine: nr})
 	traces = append(traces, make([]TraceElement, 0))
 	tracesLock.Unlock()
 
@@ -60,12 +61,14 @@ func SpawnPost(numRut uint32) {
 	id := goid.Get()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(1)
 
 	routineIndexLock.Lock()
 	routineIndex[id] = numRut
 	routineIndexLock.Unlock()
 
 	tracesLock.Lock()
-	traces[numRut] = append(traces[numRut], &TraceWait{timestamp: timestamp, routine: numRut})
+	traces[numRut] = append(traces[numRut], &TraceWait{position: position,
+		timestamp: timestamp, routine: numRut})
 	tracesLock.Unlock()
 }

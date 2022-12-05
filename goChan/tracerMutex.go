@@ -23,13 +23,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 Author: Erik Kassubek <erik-kassubek@t-online.de>
-Package: GoChan-Tracer
+Package: goChan
 Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 	Institute of Computer Science: Dynamic Analysis of message passing go programs
 */
 
 /*
-mutex.go
+tracerMutex.go
 Drop in replacements for (rw)mutex and (Try)(R)lock and (Try)(R-)Unlock
 */
 
@@ -80,6 +80,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(2)
 
 	res := true
 	if try {
@@ -89,7 +90,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceLock{timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: timestamp,
 		lockId: m.id, try: try, read: false, suc: res})
 	tracesLock.Unlock()
 
@@ -105,11 +106,12 @@ func (m *Mutex) Unlock() {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(2)
 
 	m.mu.Unlock()
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: timestamp,
 		lockId: m.id})
 	tracesLock.Unlock()
 }
@@ -180,6 +182,7 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(2)
 
 	res := true
 	if try {
@@ -198,7 +201,7 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index],
-		&TraceLock{timestamp: timestamp, lockId: m.id, try: try, read: read,
+		&TraceLock{position: position, timestamp: timestamp, lockId: m.id, try: try, read: read,
 			suc: res})
 	tracesLock.Unlock()
 
@@ -233,6 +236,7 @@ func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
+	position := getPosition(2)
 
 	if read {
 		m.mu.RUnlock()
@@ -241,7 +245,7 @@ func (m *RWMutex) t_Unlock(read bool) {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: timestamp,
 		lockId: m.id})
 	tracesLock.Unlock()
 }

@@ -56,7 +56,7 @@ func instrument_chan(f *ast.File) error {
 		case *ast.FuncDecl:
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
 				if show_trace {
-					add_show_trace_call(n)
+					add_run_analyzer(n)
 				}
 				add_init_call(n)
 			} else {
@@ -147,7 +147,7 @@ func add_goChan_import(n *ast.File) {
 
 /*
 Function to add call of goChan.Init(), defer time.Sleep(time.Millisecond)
-and defer goChan.PrintTrace() to the main function. The time.Sleep call is used
+and defer goChan.RunAnalyzer() to the main function. The time.Sleep call is used
 to give the go routines a chance to finish there execution.
 @param n *ast.FuncDecl: node of the main function declaration of the ast
 @return nil
@@ -171,12 +171,12 @@ func add_init_call(n *ast.FuncDecl) {
 }
 
 // add function to show the trace
-func add_show_trace_call(n *ast.FuncDecl) {
+func add_run_analyzer(n *ast.FuncDecl) {
 	n.Body.List = append([]ast.Stmt{
 		&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
-					Name: "defer goChan.PrintTrace",
+					Name: "defer goChan.RunAnalyzer",
 				},
 			},
 		},
