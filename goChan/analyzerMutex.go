@@ -236,8 +236,7 @@ func isChain(stack *depStack, dep *dependency, routineIndex int) bool {
 	// the mutex of the depEntry at the top of the stack mut be in the
 	// holding set of dep
 	found := false
-	for i := 0; i < len(dep.holdingSet); i++ {
-		mutexInHs := dep.holdingSet[i]
+	for _, mutexInHs := range dep.holdingSet {
 		if mutexInHs.(*TraceLock).lockId == stack.top.depEntry.mu.(*TraceLock).lockId {
 			// if mutexInHs is read, the mutex at the top of the stack can not also be read
 			if !(mutexInHs.(*TraceLock).read && stack.top.depEntry.mu.(*TraceLock).read) {
@@ -300,8 +299,7 @@ func isCycleChain(dStack *depStack, dep *dependency, routineIndex int) bool {
 	// the mutex dep must be in the holding set of the depEntry at the bottom of
 	// the stack
 	found := false
-	for i := 0; i < len(dStack.stack.next.depEntry.holdingSet); i++ {
-		mutexInHs := dStack.stack.next.depEntry.holdingSet[i]
+	for _, mutexInHs := range dStack.stack.next.depEntry.holdingSet {
 		if mutexInHs.(*TraceLock).lockId == dep.mu.(*TraceLock).lockId {
 			// if mutexInHs is read, the mutex at the top of the stack can not also be read
 			if !(mutexInHs.(*TraceLock).read && dep.mu.(*TraceLock).read) {
