@@ -92,7 +92,7 @@ func buildGraphAndCheckDoubleLocking() (bool, []string) {
 				noDep++
 			case *TraceUnlock: // remove lock from currently hold locks
 				for i := len(currentHoldLocks) - 1; i >= 0; i-- {
-					if currentHoldLocks[i].(*TraceUnlock).lockId == e.lockId {
+					if currentHoldLocks[i].(*TraceLock).lockId == e.lockId {
 						currentHoldLocks = append(currentHoldLocks[:i], currentHoldLocks[i+1:]...)
 					}
 				}
