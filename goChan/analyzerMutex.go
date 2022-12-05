@@ -131,9 +131,7 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 	// of the search.
 	// They can also be temporarily ignored, if a dependency of this routine
 	// is already in the path which is currently explored
-	isTraversed := make([]bool, numberRoutines)
-
-	fmt.Println(lockGraph)
+	isTraversed := make([]bool, len(lockGraph))
 
 	// traverse all routines as starting routine for the loop search
 	for i, routine := range lockGraph {
@@ -241,7 +239,6 @@ func isChain(stack *depStack, dep *dependency, routineIndex int) bool {
 	// holding set of dep
 	found := false
 	for _, mutexInHs := range dep.holdingSet {
-		fmt.Println(mutexInHs, stack.top.depEntry.mu)
 		if mutexInHs.(*TraceLock).lockId == stack.top.depEntry.mu.(*TraceLock).lockId {
 			// if mutexInHs is read, the mutex at the top of the stack can not also be read
 			if !(mutexInHs.(*TraceLock).read && stack.top.depEntry.mu.(*TraceLock).read) {
