@@ -11,4 +11,4 @@ run_instrumenter:
 	@./instrumenter/instrumenter -in="$(IN)" -chan -mut -show_trace
 
 build_prog:
-	@cd output; cd $(IN); echo ============= Install libraries =============; go get github.com/ErikKassubek/GoChan/goChan@e0c28ca; go get golang.org/x/tools/cmd/goimports; go mod tidy ; echo ============= Cleanup files ============= ;goimports -w . ; echo ============= Build files =============; go build; echo ============= Done =============
+	@cd output; cd $(IN); echo ============= Install libraries =============; go get github.com/ErikKassubek/GoChan/goChan@c55b846; go get golang.org/x/tools/cmd/goimports; go mod tidy ; echo ============= Cleanup files ============= ;goimports -w . ; echo ============= Build files =============; go build; echo ============= Done =============
