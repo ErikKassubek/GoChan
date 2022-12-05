@@ -131,6 +131,8 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 	// is already in the path which is currently explored
 	isTraversed := make([]bool, numberRoutines)
 
+	fmt.Println(lockGraph)
+
 	// traverse all routines as starting routine for the loop search
 	for i, routine := range lockGraph {
 		visiting = i
@@ -143,7 +145,6 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 			// push the dependency on the stack as first element of the currently
 			// explored path
 			stack.push(&dep, i)
-			fmt.Print(&dep)
 
 			// start the depth-first search to find potential circular paths
 			r, rs := dfs(&stack, visiting, &isTraversed)
