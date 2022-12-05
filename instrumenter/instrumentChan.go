@@ -164,6 +164,11 @@ func add_init_call(n *ast.FuncDecl) {
 				Fun: &ast.Ident{
 					Name: "goChan.Init",
 				},
+				Args: []ast.Expr{
+					&ast.Ident{
+						Name: "10",
+					},
+				},
 			},
 		},
 	}, body...)

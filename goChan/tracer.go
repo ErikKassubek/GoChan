@@ -31,6 +31,7 @@ Program
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ var counter uint32 // PC
 Function to initialize the tracer.
 @return: nil
 */
-func Init() {
+func Init(maxTime int) {
 	numberRoutines = 0
 	numberOfChan = 0
 	numberOfMutex = 0
@@ -68,7 +69,14 @@ func Init() {
 	routineIndex[goid.Get()] = 0
 	routineIndexLock.Unlock()
 
-	go func() { t := time.NewTimer(10 * time.Second); <-t.C; RunAnalyzer() }()
+	go func() {
+		t := time.NewTimer(time.Duration(maxTime) * time.Second)
+		<-t.C
+		RunAnalyzer()
+		os.Exit(1)
+		fmt.Printf("Programm was terminated by tracer, because the program"+
+			"runtime exceeded the maximal runtime of %d s", maxTime)
+	}()
 }
 
 /*
