@@ -95,31 +95,31 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ErikKassubek/GoChan/tracer"
+	"github.com/ErikKassubek/GoChan/goChan"
 )
 
-func func1(x tracer.Chan[int]) {
+func func1(x goChan.Chan[int]) {
 	x.Send(rand.Intn(100))
 }
 
 func test() {
 
-	x := tracer.NewChan[int](0)
+	x := goChan.NewChan[int](0)
 	y := tracer.NewChan[int](0)
 
-	a := tracer.NewChan[int](1)
-	b := tracer.NewChan[int](0)
+	a := goChan.NewChan[int](1)
+	b := goChan.NewChan[int](0)
 	c := tracer.NewChan[string](0)
 
-	l := tracer.NewLock()
-	m := tracer.NewRWLock()
+	l := goChan.NewLock()
+	m := goChan.NewRWLock()
 
 	i := 3
 
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 
 				func1(x)
@@ -128,9 +128,9 @@ func test() {
 	}()
 
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				m.Lock()
 				x.Receive()
@@ -141,9 +141,9 @@ func test() {
 	}()
 
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func(i int) {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				l.Lock()
 				y.Send(i)
@@ -155,9 +155,9 @@ func test() {
 	}()
 
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				m.RLock()
 				y.Receive()
@@ -169,8 +169,8 @@ func test() {
 	time.Sleep(1 * time.Second)
 
 	{
-		tracer.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
-		sel_HctcuAxh := tracer.BuildMessage("3")
+		goChan.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
+		sel_HctcuAxh := goChan.BuildMessage("3")
 
 		select {
 		case sel_XVlBzgbaiC := <-a.GetChan():
@@ -184,15 +184,15 @@ func test() {
 			c.Post(false, sel_HctcuAxh)
 			println("c")
 		default:
-			tracer.PostDefault()
+			goChan.PostDefault()
 			println("default")
 		}
 	}
 }
 
 func main() {
-	tracer.Init()
-	defer tracer.PrintTrace()
+	goChan.Init()
+	defer goChan.PrintTrace()
 
 	test()
 
@@ -207,4 +207,4 @@ We can now run the translated project and get a trace. One possible trace is
 [wait(12, 4), lock(13, 1, -, 1), pre(14, 3!), post(15, 4, 3!), pre(16, 2?), post(17, 2, 2?, 9), unlock(18, 1)]
 [wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(20, 4, 3?, 14), unlock(21, 2)]
 ```
-An explenation of the trace can be found in the [tracer](https://github.com/ErikKassubek/GoChan/tree/main/tracer).
+An explenation of the trace can be found in [goChan](https://github.com/ErikKassubek/GoChan/tree/main/goChan).

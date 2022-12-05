@@ -6,10 +6,10 @@
 
 ## What?
 This program can be used to translate regular Go code 
-into code usable by the [GoChan-Tracer](https://github.com/ErikKassubek/GoChan/tree/main/tracer).
+into code usable by [GoChan](https://github.com/ErikKassubek/GoChan/tree/main/goChan).
 
 ## How to use
-To use the tracer, run 
+To use goChan, run 
 ```
 cd instrumenter
 go build
@@ -20,8 +20,8 @@ cd ..
 The tags -out and -show trace are not mandatory.
 The translated files can be found in [output_folder] or ./output, if out was not specified.
 
-To use the tracer, 
+To use goChan, 
 ```
-go get github.com/ErikKassubek/GoChan/tracer
+go get github.com/ErikKassubek/GoChan/goChan
 ```
 must be installed on the output files.

@@ -25,7 +25,7 @@ Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 
 /*
 instrumentChan.go
-Instrument channels to work with the "github.com/ErikKassubek/GoChan/tracer" library
+Instrument channels to work with the "github.com/ErikKassubek/GoChan/goChan" library
 */
 
 import (
@@ -40,13 +40,13 @@ import (
 
 /*
 Function to instrument a given ast.File with channels. Channels and operation
-of this channels are replaced by there tracer equivalent.
+of this channels are replaced by there goChan equivalent.
 @param f *ast.File: ast file to instrument
 @return error: error or nil
 */
 func instrument_chan(f *ast.File) error {
-	// add the import of the tracer library
-	add_tracer_import(f)
+	// add the import of the goChan library
+	add_goChan_import(f)
 
 	// first pass-through to instrument main function and function declarations
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
@@ -103,15 +103,15 @@ func instrument_chan(f *ast.File) error {
 }
 
 /*
-Function to add the import of the tracer library
+Function to add the import of the goChan library
 @param n *ast.File: ast file to instrument
 @return nil
 */
-func add_tracer_import(n *ast.File) {
+func add_goChan_import(n *ast.File) {
 	import_spec := &ast.ImportSpec{
 		Path: &ast.BasicLit{
 			Kind:  token.STRING,
-			Value: "\"github.com/ErikKassubek/GoChan/tracer\"",
+			Value: "\"github.com/ErikKassubek/GoChan/goChan\"",
 		},
 	}
 
@@ -146,8 +146,8 @@ func add_tracer_import(n *ast.File) {
 }
 
 /*
-Function to add call of tracer.Init(), defer time.Sleep(time.Millisecond)
-and defer tracer.PrintTrace() to the main function. The time.Sleep call is used
+Function to add call of goChan.Init(), defer time.Sleep(time.Millisecond)
+and defer goChan.PrintTrace() to the main function. The time.Sleep call is used
 to give the go routines a chance to finish there execution.
 @param n *ast.FuncDecl: node of the main function declaration of the ast
 @return nil
@@ -162,7 +162,7 @@ func add_init_call(n *ast.FuncDecl) {
 		&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
-					Name: "tracer.Init",
+					Name: "goChan.Init",
 				},
 			},
 		},
@@ -176,7 +176,7 @@ func add_show_trace_call(n *ast.FuncDecl) {
 		&ast.ExprStmt{
 			X: &ast.CallExpr{
 				Fun: &ast.Ident{
-					Name: "defer tracer.PrintTrace",
+					Name: "defer goChan.PrintTrace",
 				},
 			},
 		},
@@ -211,7 +211,7 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
 			case *ast.ChanType:
 				type_val := get_name(t_type.Value)
 				n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
-					Name: "= tracer.NewChan[" + type_val + "](0)",
+					Name: "= goChan.NewChan[" + type_val + "](0)",
 				}
 			}
 		case *ast.TypeSpec:
@@ -222,7 +222,7 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
 					case *ast.ChanType:
 						type_val := get_name(t_type.Value)
 						n.Specs[i].(*ast.TypeSpec).Type.(*ast.StructType).Fields.List[j].Type = &ast.Ident{
-							Name: "tracer.Chan[" + type_val + "]",
+							Name: "goChan.Chan[" + type_val + "]",
 						}
 					}
 				}
@@ -274,7 +274,7 @@ func instrument_function_declaration_return_values(n *ast.FuncType) {
 
 		translated_string := ""
 		name := get_name(res.Type.(*ast.ChanType).Value)
-		translated_string = "tracer.Chan[" + name + "]"
+		translated_string = "goChan.Chan[" + name + "]"
 
 		// set the translated value
 		n.Results.List[i] = &ast.Field{
@@ -309,11 +309,11 @@ func instrument_function_declaration_parameter(n *ast.FuncType) {
 		translated_string := ""
 		switch v := res.Type.(*ast.ChanType).Value.(type) {
 		case *ast.Ident: // chan <type>
-			translated_string = "tracer.Chan[" + v.Name + "]"
+			translated_string = "goChan.Chan[" + v.Name + "]"
 		case *ast.StructType:
-			translated_string = "tracer.Chan[struct{}]"
+			translated_string = "goChan.Chan[struct{}]"
 		case *ast.ArrayType:
-			translated_string = "tracer.Chan[[]" + v.Elt.(*ast.Ident).Name + "]"
+			translated_string = "goChan.Chan[[]" + v.Elt.(*ast.Ident).Name + "]"
 		}
 
 		// set the translated value
@@ -383,7 +383,7 @@ func instrument_assign_struct(n *ast.AssignStmt) {
 			size = get_name(t_type.Args[1])
 		}
 
-		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Fun = &ast.Ident{Name: "tracer.NewChan[" + name + "]"}
+		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Fun = &ast.Ident{Name: "goChan.NewChan[" + name + "]"}
 		n.Rhs[0].(*ast.CompositeLit).Elts[i].(*ast.KeyValueExpr).Value.(*ast.CallExpr).Args = []ast.Expr{&ast.Ident{Name: size}}
 	}
 }
@@ -453,7 +453,7 @@ func instrument_range_stm(n *ast.RangeStmt) {
 	if len(chanType) < 17 {
 		return
 	}
-	if !(chanType[0:14] == "tracer.NewChan" || chanType[0:16] == "tracer.NewRWChan") {
+	if !(chanType[0:14] == "goChan.NewChan" || chanType[0:16] == "goChan.NewRWChan") {
 		return
 	}
 
@@ -502,8 +502,8 @@ func instrument_call_expressions(n *ast.AssignStmt) {
 				}
 			}
 
-			// set function name to tracer.NewChan[<chanType>]
-			callExp.Fun.(*ast.Ident).Name = "tracer.NewChan[" + chanType + "]"
+			// set function name to goChan.NewChan[<chanType>]
+			callExp.Fun.(*ast.Ident).Name = "goChan.NewChan[" + chanType + "]"
 
 			// remove second argument if size was given in make
 			if len(callExp.Args) >= 1 {
@@ -694,7 +694,7 @@ func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	})
 }
 
-// change close statements to tracer.Close
+// change close statements to goChan.Close
 func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	x_part := n.X.(*ast.CallExpr)
 
@@ -793,7 +793,7 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 							Rhs: []ast.Expr{
 								&ast.CallExpr{
 									Fun: &ast.Ident{
-										Name: "tracer.SpawnPre",
+										Name: "goChan.SpawnPre",
 									},
 								},
 							},
@@ -809,7 +809,7 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 											&ast.ExprStmt{
 												X: &ast.CallExpr{
 													Fun: &ast.Ident{
-														Name: "tracer.SpawnPost",
+														Name: "goChan.SpawnPost",
 													},
 													Args: []ast.Expr{
 														&ast.Ident{
@@ -852,14 +852,14 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 			continue
 		}
 
-		// check for default, add tracer.PostDefault if found
+		// check for default, add goChan.PostDefault if found
 		if c.(*ast.CommClause).Comm == nil {
 			d = true
 			c.(*ast.CommClause).Body = append([]ast.Stmt{
 				&ast.ExprStmt{
 					X: &ast.CallExpr{
 						Fun: &ast.Ident{
-							Name: "tracer.PostDefault",
+							Name: "goChan.PostDefault",
 						},
 					},
 				}}, c.(*ast.CommClause).Body...)
@@ -983,7 +983,7 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 			&ast.ExprStmt{
 				X: &ast.CallExpr{
 					Fun: &ast.Ident{
-						Name: "tracer.PreSelect",
+						Name: "goChan.PreSelect",
 					},
 					Args: []ast.Expr{
 						&ast.Ident{
@@ -1002,7 +1002,7 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 			},
 			Tok: token.DEFINE,
 			Rhs: []ast.Expr{
-				&ast.Ident{Name: "tracer.BuildMessage(" + c.message + ")"},
+				&ast.Ident{Name: "goChan.BuildMessage(" + c.message + ")"},
 			},
 		})
 	}

@@ -26,7 +26,7 @@ Project: Bachelor Thesis at the Albert-Ludwigs-University Freiburg,
 /*
 instrumenter.go
 instrument files to work with the
-"github.com/ErikKassubek/GoChan/tracer" libraries
+"github.com/ErikKassubek/GoChan/goChan" libraries
 */
 
 import (
