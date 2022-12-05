@@ -73,7 +73,7 @@ func buildGraphAndCheckDoubleLocking() (bool, []string) {
 	resString := make([]string, 0)
 
 	for index, trace := range traces {
-		lockGraph[index] = make([]dependency, len(trace))
+		lockGraph[index] = make([]dependency, 0)
 		currentHoldLocks := make([]TraceElement, 0)
 		for _, elem := range trace {
 			switch e := elem.(type) {
