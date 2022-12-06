@@ -74,7 +74,7 @@ func Init(maxTime int) {
 		<-t.C
 		RunAnalyzer()
 		fmt.Printf("Programm was terminated by tracer, because the program"+
-			" runtime exceeded the maximal runtime of %d s.\n", maxTime)
+			" runtime exceeded the maximal runtime of %d s.\n\n", maxTime)
 		os.Exit(1)
 	}()
 }

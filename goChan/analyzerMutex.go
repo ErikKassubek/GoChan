@@ -308,13 +308,11 @@ Function to get the string for a potential cyclic deadlock
 */
 func getDeadlockMessage(stack *depStack) string {
 	message := "Potential Cyclic Mutex Locking:\n"
-	for cl := stack.stack.next; cl != nil; cl = cl.next {
+	for cl := stack.stack; cl != nil; cl = cl.next {
 		lock := cl.depEntry.mu
 		switch l := lock.(type) {
 		case *TraceLock:
 			message += fmt.Sprintf("  Lock  : %s\n", l.position)
-		case *TraceUnlock:
-			message += fmt.Sprintf("  Unlock: %s\n", l.position)
 		}
 	}
 	return message
