@@ -169,9 +169,9 @@ func dfs(stack *depStack, visiting int, isTraversed *([]bool)) (bool, []string) 
 		routine := lockGraph[i]
 
 		// continue if the routine has already been traversed
-		if (*isTraversed)[i] {
-			continue
-		}
+		// if (*isTraversed)[i] {
+	//		continue
+		//}
 
 		// go through all dependencies of the current routine
 		for j := 0; j < len(routine); j++ {
