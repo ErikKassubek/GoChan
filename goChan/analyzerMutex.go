@@ -53,12 +53,10 @@ func analyzeMutexDeadlock() (bool, []string) {
 
 	// check for circular deadlocks if at least two routines and two
 	// Dependencies exist
-	if len(traces) > 1 {
-		if noDep > 1 {
-			r, s := findPotentialMutexDeadlocksCirc()
-			res = res || r
-			resString = append(resString, s...)
-		}
+	if len(traces) > 1 && noDep > 1 {
+		r, s := findPotentialMutexDeadlocksCirc()
+		res = res || r
+		resString = append(resString, s...)
 	}
 
 	return res, resString
@@ -79,9 +77,7 @@ func buildGraph() (bool, []string) {
 			switch e := elem.(type) {
 			case *TraceLock:
 				// add dependency to graph and lock to currentHoldLocks
-				if len(currentHoldLocks) > 0 {
-					lockGraph[index] = append(lockGraph[index], newDependency(e, currentHoldLocks))
-				}
+				lockGraph[index] = append(lockGraph[index], newDependency(e, currentHoldLocks))
 				currentHoldLocks = append(currentHoldLocks, e)
 				noDep++
 			case *TraceUnlock: // remove lock from currently hold locks
