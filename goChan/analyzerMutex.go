@@ -128,7 +128,6 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 		// traverse all dependencies of the given routine as starting routine
 		// for potential paths
 		for _, dep := range routine {
-			isTraversed[i] = true
 
 			// push the dependency on the stack as first element of the currently
 			// explored path
@@ -142,6 +141,7 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 			// remove dep from the stack
 			stack.pop()
 		}
+    isTraversed[i] = true
 	}
 
 	return res, resString
