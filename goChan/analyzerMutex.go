@@ -141,7 +141,7 @@ func findPotentialMutexDeadlocksCirc() (bool, []string) {
 			// remove dep from the stack
 			stack.pop()
 		}
-    isTraversed[i] = true
+		isTraversed[i] = true
 	}
 
 	return res, resString
@@ -169,9 +169,9 @@ func dfs(stack *depStack, visiting int, isTraversed *([]bool)) (bool, []string) 
 		routine := lockGraph[i]
 
 		// continue if the routine has already been traversed
-		// if (*isTraversed)[i] {
-	//		continue
-		//}
+		if (*isTraversed)[i] {
+			continue
+		}
 
 		// go through all dependencies of the current routine
 		for j := 0; j < len(routine); j++ {
@@ -191,7 +191,9 @@ func dfs(stack *depStack, visiting int, isTraversed *([]bool)) (bool, []string) 
 					(*isTraversed)[i] = true
 
 					// call dfs recursively to traverse the path further
-					dfs(stack, visiting, isTraversed)
+					r, rs := dfs(stack, visiting, isTraversed)
+					res = res || r
+					resString = append(resString, rs...)
 
 					// dep did not lead to a cycle in the lock trees.
 					// It is removed to explore different paths
@@ -312,7 +314,7 @@ func getDeadlockMessage(stack *depStack) string {
 		lock := cl.depEntry.mu
 		switch l := lock.(type) {
 		case *TraceLock:
-			message += fmt.Sprintf("  Lock  : %s\n", l.position)
+			message += fmt.Sprintf("Lock  : %s\n", l.position)
 		}
 	}
 	return message
