@@ -191,11 +191,14 @@ func main() {
 ``` 
 One possible trace of the program is
 ```
+[5: 0, 1: 0, 2: 0, 3: 1, 4: 0]
+[
 [signal(1, 2), signal(2, 3), signal(3, 4), signal(4, 5), pre(23, 3?, 4?, 5!, default), post(24, default)]
-[wait(8, 2), pre(9, 2!), post(19, 2, 2!)]
-[wait(10, 3), lock(11, 2, -, 1), pre(22, 2?)]
-[wait(12, 4), lock(13, 1, -, 1), pre(14, 3!), post(15, 4, 3!), pre(16, 2?), post(17, 2, 2?, 9), unlock(18, 1)]
-[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(20, 4, 3?, 14), unlock(21, 2)]
+[wait(16, 2), pre(17, 2!), post(19, 2, 2!)]
+[wait(8, 3), lock(18, 2, -, 1), pre(22, 2?)]
+[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!), pre(13, 2?), post(20, 2, 2?, 17), unlock(21, 1)]
+[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11), unlock(15, 2)]
+]
 ```
 Every line represents a routine (the first line is the main routine).
 The elements have the following meaning:

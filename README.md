@@ -105,17 +105,16 @@ func func1(x goChan.Chan[int]) {
 func test() {
 
 	x := goChan.NewChan[int](0)
-	y := tracer.NewChan[int](0)
+	y := goChan.NewChan[int](0)
 
 	a := goChan.NewChan[int](1)
 	b := goChan.NewChan[int](0)
-	c := tracer.NewChan[string](0)
+	c := goChan.NewChan[string](0)
 
-	l := goChan.NewLock()
-	m := goChan.NewRWLock()
+	var l = goChan.NewMutex()
+	var m = goChan.NewRWMutex()
 
 	i := 3
-
 	func() {
 		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
@@ -126,7 +125,6 @@ func test() {
 			}
 		}()
 	}()
-
 	func() {
 		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
@@ -139,7 +137,6 @@ func test() {
 			}
 		}()
 	}()
-
 	func() {
 		GoChanRoutineIndex := goChan.SpawnPre()
 		go func(i int) {
@@ -153,7 +150,6 @@ func test() {
 			}
 		}(i)
 	}()
-
 	func() {
 		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
@@ -161,13 +157,13 @@ func test() {
 			{
 				m.RLock()
 				y.Receive()
+
 				m.RUnlock()
 			}
 		}()
 	}()
 
 	time.Sleep(1 * time.Second)
-
 	{
 		goChan.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
 		sel_HctcuAxh := goChan.BuildMessage("3")
@@ -191,20 +187,22 @@ func test() {
 }
 
 func main() {
-	goChan.Init()
-	defer goChan.PrintTrace()
-
+	goChan.Init(10)
+	defer goChan.RunAnalyzer()
+	defer time.Sleep(time.Millisecond)
 	test()
-
 	time.Sleep(4 * time.Second)
 }
 ```
-We can now run the translated project and get a trace. One possible trace is
+One possible trace for the program is
 ```
+[5: 0, 1: 0, 2: 0, 3: 1, 4: 0]
+[
 [signal(1, 2), signal(2, 3), signal(3, 4), signal(4, 5), pre(23, 3?, 4?, 5!, default), post(24, default)]
-[wait(8, 2), pre(9, 2!), post(19, 2, 2!)]
-[wait(10, 3), lock(11, 2, -, 1), pre(22, 2?)]
-[wait(12, 4), lock(13, 1, -, 1), pre(14, 3!), post(15, 4, 3!), pre(16, 2?), post(17, 2, 2?, 9), unlock(18, 1)]
-[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(20, 4, 3?, 14), unlock(21, 2)]
+[wait(16, 2), pre(17, 2!), post(19, 2, 2!)]
+[wait(8, 3), lock(18, 2, -, 1), pre(22, 2?)]
+[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!), pre(13, 2?), post(20, 2, 2?, 17), unlock(21, 1)]
+[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11), unlock(15, 2)]
+]
 ```
 An explenation of the trace can be found in [goChan](https://github.com/ErikKassubek/GoChan/tree/main/goChan).
