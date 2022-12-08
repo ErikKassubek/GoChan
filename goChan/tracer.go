@@ -46,6 +46,9 @@ var numberRoutines uint32
 var numberOfChan uint32
 var numberOfMutex uint32
 
+var chanSize = make(map[uint32]int)
+var chanSizeLock sync.Mutex
+
 var traces = make([]([]TraceElement), 0) // lists of traces
 var tracesLock sync.RWMutex
 

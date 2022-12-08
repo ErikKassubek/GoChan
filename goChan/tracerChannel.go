@@ -81,8 +81,13 @@ replacement for a chan T.
 @return Chan[T]: channel object
 */
 func NewChan[T any](size int) Chan[T] {
-	ch := Chan[T]{c: make(chan Message[T], size),
-		id: atomic.AddUint32(&numberOfChan, 1)}
+	id := atomic.AddUint32(&numberOfChan, 1)
+  ch := Chan[T]{c: make(chan Message[T], size),
+		id: id}
+
+  chanSizeLock.Lock()
+  chanSize[id] = size
+  chanSizeLock.Unlock()
 
 	return ch
 }
