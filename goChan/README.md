@@ -90,42 +90,40 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ErikKassubek/GoChan/tracer"
+	"github.com/ErikKassubek/GoChan/goChan"
 )
 
-func func1(x tracer.Chan[int]) {
+func func1(x goChan.Chan[int]) {
 	x.Send(rand.Intn(100))
 }
 
 func test() {
 
-	x := tracer.NewChan[int](0)
-	y := tracer.NewChan[int](0)
+	x := goChan.NewChan[int](0)
+	y := goChan.NewChan[int](0)
 
-	a := tracer.NewChan[int](1)
-	b := tracer.NewChan[int](0)
-	c := tracer.NewChan[string](0)
+	a := goChan.NewChan[int](1)
+	b := goChan.NewChan[int](0)
+	c := goChan.NewChan[string](0)
 
-	l := tracer.NewLock()
-	m := tracer.NewRWLock()
+	var l = goChan.NewMutex()
+	var m = goChan.NewRWMutex()
 
 	i := 3
-
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 
 				func1(x)
 			}
 		}()
 	}()
-
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				m.Lock()
 				x.Receive()
@@ -134,11 +132,10 @@ func test() {
 			}
 		}()
 	}()
-
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func(i int) {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				l.Lock()
 				y.Send(i)
@@ -148,53 +145,51 @@ func test() {
 			}
 		}(i)
 	}()
-
 	func() {
-		GoChanRoutineIndex := tracer.SpawnPre()
+		GoChanRoutineIndex := goChan.SpawnPre()
 		go func() {
-			tracer.SpawnPost(GoChanRoutineIndex)
+			goChan.SpawnPost(GoChanRoutineIndex)
 			{
 				m.RLock()
 				y.Receive()
+
 				m.RUnlock()
 			}
 		}()
 	}()
 
 	time.Sleep(1 * time.Second)
-
 	{
-		tracer.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
-		sel_HctcuAxh := tracer.BuildMessage("3")
+		goChan.PreSelect(true, a.GetIdPre(true), b.GetIdPre(true), c.GetIdPre(false))
+		sel_HctcuAxh := goChan.BuildMessage("3")
 
 		select {
 		case sel_XVlBzgbaiC := <-a.GetChan():
-			a.PostSelect(true, sel_XVlBzgbaiC)
+			a.Post(true, sel_XVlBzgbaiC)
 			x := sel_XVlBzgbaiC.GetInfo()
 			println(x)
 		case sel_MRAjWwhT := <-b.GetChan():
-			b.PostSelect(true, sel_MRAjWwhT)
+			b.Post(true, sel_MRAjWwhT)
 			println("b")
 		case c.GetChan() <- sel_HctcuAxh:
-			c.PostSelect(false, sel_HctcuAxh)
+			c.Post(false, sel_HctcuAxh)
 			println("c")
 		default:
-			tracer.PostDefault()
+			goChan.PostDefault()
 			println("default")
 		}
 	}
 }
 
 func main() {
-	tracer.Init()
-	defer tracer.PrintTrace()
-
+	goChan.Init(10)
+	defer goChan.RunAnalyzer()
+	defer time.Sleep(time.Millisecond)
 	test()
 	time.Sleep(4 * time.Second)
 }
-
 ``` 
-By running this program we get the resulting trace. One possible trace is
+One possible trace of the program is
 ```
 [signal(1, 2), signal(2, 3), signal(3, 4), signal(4, 5), pre(23, 3?, 4?, 5!, default), post(24, default)]
 [wait(8, 2), pre(9, 2!), post(19, 2, 2!)]
