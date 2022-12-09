@@ -82,12 +82,12 @@ replacement for a chan T.
 */
 func NewChan[T any](size int) Chan[T] {
 	id := atomic.AddUint32(&numberOfChan, 1)
-  ch := Chan[T]{c: make(chan Message[T], size),
+	ch := Chan[T]{c: make(chan Message[T], size),
 		id: id}
 
-  chanSizeLock.Lock()
-  chanSize[id] = size
-  chanSizeLock.Unlock()
+	chanSizeLock.Lock()
+	chanSize[id] = size
+	chanSizeLock.Unlock()
 
 	return ch
 }

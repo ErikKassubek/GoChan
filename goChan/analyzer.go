@@ -60,6 +60,12 @@ func RunAnalyzer() {
 	res = res || r
 	resString = append(resString, rs...)
 
+	if ok, c := checkForDanglingEvents(); ok {
+		fmt.Println("Found dangling Events")
+		vcTrace := buildVectorClockChan(c)
+		findAlternativeCommunication(vcTrace)
+	}
+
 	tracesLock.Unlock()
 
 	// print res Strings

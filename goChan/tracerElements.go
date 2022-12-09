@@ -37,6 +37,7 @@ Interface for a trace element.
 @signature PrintElement(): function to print the element
 */
 type TraceElement interface {
+	GetTimestamp() uint32
 	PrintElement()
 }
 
@@ -52,6 +53,14 @@ type TraceSignal struct {
 	position  string
 	timestamp uint32
 	routine   uint32
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (ts *TraceSignal) GetTimestamp() uint32 {
+	return ts.timestamp
 }
 
 /*
@@ -73,6 +82,14 @@ type TraceWait struct {
 	position  string
 	timestamp uint32
 	routine   uint32
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (ts *TraceWait) GetTimestamp() uint32 {
+	return ts.timestamp
 }
 
 /*
@@ -99,6 +116,14 @@ type TracePre struct {
 }
 
 /*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tp *TracePre) GetTimestamp() uint32 {
+	return tp.timestamp
+}
+
+/*
 Function to print the pre trace element
 @receiver *TracePre
 @return nil
@@ -108,7 +133,7 @@ func (tp *TracePre) PrintElement() {
 	if tp.send {
 		direction = "!"
 	}
-	fmt.Printf("pre(%d, %d%s)", tp.timestamp, tp.chanId+1, direction)
+	fmt.Printf("pre(%d, %d%s)", tp.timestamp, tp.chanId, direction)
 }
 
 /*
@@ -130,6 +155,14 @@ type TracePost struct {
 }
 
 /*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tp *TracePost) GetTimestamp() uint32 {
+	return tp.timestamp
+}
+
+/*
 Function to print the post trace element
 @receiver *TracePost
 @return nil
@@ -137,10 +170,10 @@ Function to print the post trace element
 func (tp *TracePost) PrintElement() {
 	if tp.send {
 		direction := "!"
-		fmt.Printf("post(%d, %d, %d%s)", tp.timestamp, tp.senderId+1, tp.chanId+1, direction)
+		fmt.Printf("post(%d, %d, %d%s)", tp.timestamp, tp.senderId, tp.chanId, direction)
 	} else {
 		direction := "?"
-		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId+1, tp.chanId+1, direction, tp.senderTimestamp)
+		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.senderTimestamp)
 	}
 }
 
@@ -154,6 +187,14 @@ type TraceClose struct {
 	position  string
 	timestamp uint32
 	chanId    uint32
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tc *TraceClose) GetTimestamp() uint32 {
+	return tc.timestamp
 }
 
 /*
@@ -177,6 +218,14 @@ type TracePreSelect struct {
 	timestamp uint32
 	chanIds   []PreObj
 	def       bool // true if select has default case
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tps *TracePreSelect) GetTimestamp() uint32 {
+	return tps.timestamp
 }
 
 /*
@@ -213,6 +262,14 @@ type TraceDefault struct {
 }
 
 /*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (td *TraceDefault) GetTimestamp() uint32 {
+	return td.timestamp
+}
+
+/*
 Function to print the default trace element
 @receiver *TraceDefault
 @return nil
@@ -239,6 +296,14 @@ type TraceLock struct {
 	try       bool
 	read      bool
 	suc       bool
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tl *TraceLock) GetTimestamp() uint32 {
+	return tl.timestamp
 }
 
 /*
@@ -276,6 +341,14 @@ type TraceUnlock struct {
 	position  string
 	timestamp uint32
 	lockId    uint32
+}
+
+/*
+Function to return the timestamp
+@return uint32: timestamp
+*/
+func (tu *TraceUnlock) GetTimestamp() uint32 {
+	return tu.timestamp
 }
 
 /*
