@@ -209,7 +209,7 @@ The elements have the following meaning:
 |pre(t, i!)| the routine has reached a state, where channel i is supposed to send, but has not send yet|
 |post(t, i, k!) | the channel k has successfully send its data in routine i with time step j|
 |pre(t, i?)|the routine has reached a state, where channel i is supposed to receive, but has not received yet|
-|post(t, i, j, k?)|the channel k has successfully received its data from routine i with time step j of routine i|
+|post(t, i, k?, j)|the channel k has successfully received its data from routine i with time step j of routine i|
 |pre(t, i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
 |pre(t, i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
 |post(t, default)|The switch statement has executed and chosen the default case.|
