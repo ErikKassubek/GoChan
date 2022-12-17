@@ -224,21 +224,30 @@ Find alternative communications based on vector clock annotated events
 @return []string: list of found communications
 */
 func findAlternativeCommunication(vcTrace []vcn) []string {
-  res_string := make([]string, 0)
+  collection := make(map[string][]string)
   for i := 0; i < len(vcTrace)-1; i++ {
 		for j := i + 1; j < len(vcTrace); j++ {
 			elem1 := vcTrace[i]
 			elem2 := vcTrace[j]
-
+      if elem1.id != elem2.id {
+        continue
+      }
 			if vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post) {
 				if elem1.send && !elem2.send {
-					res_string = append(res_string, fmt.Sprintf("%s -> %s\n", elem1.position, elem2.position))
+          collection[elem1.position] = append(collection[elem1.position], elem2.position)
 				} else if elem2.send && !elem1.send {
-					res_string = append(res_string, fmt.Sprintf("%s -> %s\n", elem2.position, elem1.position))
+					collection[elem2.position] = append(collection[elem2.position], elem1.position)
 				}
 			}
 		}
 	}
+  res_string := make([]string, 0)
+  for send, recs := range collection {
+    res := fmt.Sprintf("%s", send)
+    for _, rec := range recs {
+      res += fmt.Sprintf("\n    %s\n", rec)
+    }
+  }
   return res_string
 }
 
