@@ -54,7 +54,7 @@ func RunAnalyzer() {
 		vcTrace := buildVectorClockChan(c)
     rs := findAlternativeCommunication(vcTrace)
     res = true
-    if len(rs) > 0 {
+    if len(rs) == 0 {
       resString = append(resString, fmt.Sprintf("No alternative communication could be found"))
     } else {
       resString = append(resString, rs...)
