@@ -247,6 +247,7 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
     for _, rec := range recs {
       res += fmt.Sprintf("\n    %s\n", rec)
     }
+    res_string = append(res_string, res)
   }
   return res_string
 }
