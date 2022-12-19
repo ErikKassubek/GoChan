@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import (
 	"fmt"
@@ -206,34 +206,32 @@ func buildVectorClockChan(c []uint32) []vcn {
 		for j, elem := range trace {
 			switch pre := elem.(type) {
 			case *TracePre: // normal pre
-				if contains(c, pre.chanId) {
-					b := false
-					for k := j + 1; k < len(trace); k++ {
-						switch post := trace[k].(type) {
-						case *TracePost:
-							if post.chanId == pre.chanId {
-								vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
-									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
-								b = true
-							}
-						}
-						if b {
-							break
+				b := false
+				for k := j + 1; k < len(trace); k++ {
+					switch post := trace[k].(type) {
+					case *TracePost:
+						if post.chanId == pre.chanId {
+							vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
+								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+							b = true
 						}
 					}
-					if !b { // dangling event (pre without post)
-						post_default_clock := make([]int, len(traces))
-						for i := 0; i < len(traces); i++ {
-							post_default_clock[i] = math.MaxInt
-						}
-						vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
-							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
+					if b {
+						break
 					}
 				}
+				if !b { // dangling event (pre without post)
+					post_default_clock := make([]int, len(traces))
+					for i := 0; i < len(traces); i++ {
+						post_default_clock[i] = math.MaxInt
+					}
+					vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
+						pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
+
+				}
 			case *TracePreSelect: // pre of select:
-				channels := compaire(c, pre.chanIds)
 				b1 := false
-				for _, channel := range channels {
+				for _, channel := range pre.chanIds {
 					b2 := false
 					for k := j + 1; k < len(trace); k++ {
 						switch post := trace[k].(type) {
@@ -254,7 +252,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 					}
 				}
 				if !b1 { // dangling event
-					for _, channel := range channels {
+					for _, channel := range pre.chanIds {
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
