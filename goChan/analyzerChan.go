@@ -310,6 +310,47 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 }
 
 /*
+Function to find impossible cases in select statements
+@param vsTrace []vcn: list of vector-clock annotated events
+@return []string: list of found cases of impossible cases in selects
+*/
+func checkForImpossibleSelectStatements(vsTrace []vcn) []string {
+	res := make([]string, 0)
+	// search for pre select
+	for _, trace := range traces {
+		for _, elem := range trace {
+			switch sel := elem.(type) {
+			case *TracePreSelect:
+				// get pre vector clock of preSelect
+				var preVc []int
+				for _, clock := range vsTrace {
+					if sel.position == clock.position {
+						preVc = clock.pre
+					}
+				}
+				// go through all cases
+				for _, c := range sel.chanIds {
+					// find possible pre vector clocks
+					b := false
+					for _, vc := range vsTrace {
+						if vc.id == c.id && !vcUnComparable(preVc, vc.pre) {
+							b = true
+							break
+						}
+					}
+					if !b {
+						res = append(res, fmt.Sprintf("Impossible Select Case Detected\n   %s\n   Case with Channel %d",
+							sel.position, c.id))
+					}
+
+				}
+			}
+		}
+	}
+	return res
+}
+
+/*
 Test weather 2 vector clocks are incomparable
 @param vc1 []int: first vector clock
 @param vc2 []int: second vector clock

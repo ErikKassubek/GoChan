@@ -49,17 +49,24 @@ func RunAnalyzer() {
 	res = res || r
 	resString = append(resString, rs...)
 
-	if ok, c := checkForDanglingEvents(); ok {
+	ok, c := checkForDanglingEvents()
+	vcTrace := buildVectorClockChan(c)
+	if ok {
 		resString = append(resString, "Found dangling Events")
-		vcTrace := buildVectorClockChan(c)
-    // fmt.Println(vcTrace)
-    rs := findAlternativeCommunication(vcTrace)
-    res = true
-    if len(rs) == 0 {
-      resString = append(resString, fmt.Sprintf("No alternative communication could be found"))
-    } else {
-      resString = append(resString, rs...)
-    }
+		// fmt.Println(vcTrace)
+		rs := findAlternativeCommunication(vcTrace)
+		res = true
+		if len(rs) == 0 {
+			resString = append(resString, fmt.Sprintf("No alternative communication could be found"))
+		} else {
+			resString = append(resString, rs...)
+		}
+	}
+
+	rs = checkForImpossibleSelectStatements(vcTrace)
+	if len(rs) != 0 {
+		resString = append(resString, rs...)
+		res = true
 	}
 
 	tracesLock.Unlock()
