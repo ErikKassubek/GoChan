@@ -85,6 +85,7 @@ func checkForDanglingEvents() (bool, []uint32) {
 	PrintTrace()
 	res := false
 	resChan := make([]uint32, 0)
+  var postChan uint32;
 	for _, trace := range traces {
 		for i, elem := range trace {
 			switch pre := elem.(type) {
@@ -106,15 +107,16 @@ func checkForDanglingEvents() (bool, []uint32) {
 					resChan = append(resChan, pre.chanId)
 				}
       case *TracePreSelect:
-        b = false
+        b := false
         if pre.def {  // no dangeling possible, if a default exist
           break
         }
         for j := i + 1; j < len(trace) && j <= i + 1; j++ {
           switch post := trace[j].(type) {
           case *TracePost:
-            if containsChan(pre.chanIds, post) {
+            if containsChan(post, pre.chanIds) {
               b = true
+              postChan = post.chanId
             }
           }
           if b {
@@ -123,7 +125,7 @@ func checkForDanglingEvents() (bool, []uint32) {
         }
         if !b {
           res = true
-          resChan = append(resChan, post.chanId)
+          resChan = append(resChan, postChan)
         }
       }
 		}
@@ -353,15 +355,15 @@ func contains(list []uint32, elem uint32) bool {
 }
 
 /*
-Check if a TracePost corresponds to an element in an PreOps list 
+Check if a TracePost corresponds to an element in an PreOpj list 
 created by an TracePreSelect
-@param list []PreOps: list of PreOps elements
+@param list []PreOpj: list of PreOps elements
 @param elem TracePost: post event
 @return bool: true, if elem corresponds to an element in list, false otherwise 
 */
-func containsChan(list []PreOps, elem TracePost) -> bool {
+func containsChan(elem *TracePost, list []PreObj) bool {
   for _, pre := range list {
-    if pre.chanId == elem.chanId && pre.receive != elem.send {
+    if pre.id == elem.chanId && pre.receive != elem.send {
       return true
     } 
   }
