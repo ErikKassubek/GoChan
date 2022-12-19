@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import (
 	"fmt"
@@ -295,7 +295,12 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 	}
 	res_string := make([]string, 0)
 	for send, recs := range collection {
-		res := fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
+		res := ""
+		if len(recs) <= 1 {
+			res = fmt.Sprintf("No Alternative Communication Partners for:\n  %s", send)
+		} else {
+			res = fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
+		}
 		for _, rec := range recs {
 			res += fmt.Sprintf("\n  -> %s", rec)
 		}

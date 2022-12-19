@@ -49,7 +49,6 @@ func RunAnalyzer() {
 	res = res || r
 	resString = append(resString, rs...)
 
-  PrintTrace()
 	if ok, c := checkForDanglingEvents(); ok {
 		resString = append(resString, "Found dangling Events")
 		vcTrace := buildVectorClockChan(c)
