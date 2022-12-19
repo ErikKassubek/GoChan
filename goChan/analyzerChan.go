@@ -85,13 +85,12 @@ func checkForDanglingEvents() (bool, []uint32) {
 	PrintTrace()
 	res := false
 	resChan := make([]uint32, 0)
-  var postChan uint32;
 	for _, trace := range traces {
 		for i, elem := range trace {
 			switch pre := elem.(type) {
 			case *TracePre:
 				b := false
-				for j := i + 1; j < len(trace) && j <= i + 1; j++ {
+				for j := i + 1; j < len(trace) && j <= i+1; j++ {
 					switch post := trace[j].(type) {
 					case *TracePost:
 						if pre.chanId == post.chanId && pre.send == post.send {
@@ -106,28 +105,29 @@ func checkForDanglingEvents() (bool, []uint32) {
 					res = true
 					resChan = append(resChan, pre.chanId)
 				}
-      case *TracePreSelect:
-        b := false
-        if pre.def {  // no dangeling possible, if a default exist
-          break
-        }
-        for j := i + 1; j < len(trace) && j <= i + 1; j++ {
-          switch post := trace[j].(type) {
-          case *TracePost:
-            if containsChan(post, pre.chanIds) {
-              b = true
-              postChan = post.chanId
-            }
-          }
-          if b {
-            break
-          }           
-        }
-        if !b {
-          res = true
-          resChan = append(resChan, postChan)
-        }
-      }
+			case *TracePreSelect:
+				b := false
+				if pre.def { // no dangeling possible, if a default exist
+					break
+				}
+				for j := i + 1; j < len(trace) && j <= i+1; j++ {
+					switch post := trace[j].(type) {
+					case *TracePost:
+						if containsChan(post, pre.chanIds) {
+							b = true
+						}
+					}
+					if b {
+						break
+					}
+				}
+				if !b {
+					res = true
+					for _, preChan := range pre.chanIds {
+						resChan = append(resChan, preChan.id)
+					}
+				}
+			}
 		}
 	}
 	return res, resChan
@@ -232,39 +232,39 @@ func buildVectorClockChan(c []uint32) []vcn {
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
 					}
 				}
-      case *TracePreSelect:  // pre of select:
-        channels := compaire(c, pre.chanIds)
-        b1 := false 
-        for _, channel := range channels {
-          b2 := false
-          for k := j + 1; k < len(trace); k++ {
-            switch post := trace[k].(type) {
-            case *TracePost:
-              if post.chanId == channel.id { 
+			case *TracePreSelect: // pre of select:
+				channels := compaire(c, pre.chanIds)
+				b1 := false
+				for _, channel := range channels {
+					b2 := false
+					for k := j + 1; k < len(trace); k++ {
+						switch post := trace[k].(type) {
+						case *TracePost:
+							if post.chanId == channel.id {
 								vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
 									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
-                b1 = true
+								b1 = true
 								b2 = true
-              }  
-            }
-            if b2 {
-              break
-            }
-          }
-          if b1 {
-            break
-          }
-        }
-        if !b1 {  // dangling event
-          for _, channel := range channels {
+							}
+						}
+						if b2 {
+							break
+						}
+					}
+					if b1 {
+						break
+					}
+				}
+				if !b1 { // dangling event
+					for _, channel := range channels {
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
 						}
 						vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
-          }
-        }
+					}
+				}
 			}
 		}
 	}
@@ -278,32 +278,32 @@ Find alternative communications based on vector clock annotated events
 @return []string: list of found communications
 */
 func findAlternativeCommunication(vcTrace []vcn) []string {
-  collection := make(map[string][]string)
-  for i := 0; i < len(vcTrace)-1; i++ {
+	collection := make(map[string][]string)
+	for i := 0; i < len(vcTrace)-1; i++ {
 		for j := i + 1; j < len(vcTrace); j++ {
 			elem1 := vcTrace[i]
 			elem2 := vcTrace[j]
-      if elem1.id != elem2.id {
-        continue
-      }
+			if elem1.id != elem2.id {
+				continue
+			}
 			if vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post) {
 				if elem1.send && !elem2.send {
-          collection[elem1.position] = append(collection[elem1.position], elem2.position)
+					collection[elem1.position] = append(collection[elem1.position], elem2.position)
 				} else if elem2.send && !elem1.send {
 					collection[elem2.position] = append(collection[elem2.position], elem1.position)
 				}
 			}
 		}
 	}
-  res_string := make([]string, 0)
-  for send, recs := range collection {
-    res := fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
-    for _, rec := range recs {
-      res += fmt.Sprintf("\n  -> %s", rec)
-    }
-    res_string = append(res_string, res)
-  }
-  return res_string
+	res_string := make([]string, 0)
+	for send, recs := range collection {
+		res := fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
+		for _, rec := range recs {
+			res += fmt.Sprintf("\n  -> %s", rec)
+		}
+		res_string = append(res_string, res)
+	}
+	return res_string
 }
 
 /*
@@ -387,19 +387,19 @@ func contains(list []uint32, elem uint32) bool {
 }
 
 /*
-Check if a TracePost corresponds to an element in an PreOpj list 
+Check if a TracePost corresponds to an element in an PreOpj list
 created by an TracePreSelect
 @param list []PreOpj: list of PreOps elements
 @param elem TracePost: post event
-@return bool: true, if elem corresponds to an element in list, false otherwise 
+@return bool: true, if elem corresponds to an element in list, false otherwise
 */
 func containsChan(elem *TracePost, list []PreObj) bool {
-  for _, pre := range list {
-    if pre.id == elem.chanId && pre.receive != elem.send {
-      return true
-    } 
-  }
-  return false
+	for _, pre := range list {
+		if pre.id == elem.chanId && pre.receive != elem.send {
+			return true
+		}
+	}
+	return false
 }
 
 /*
@@ -409,13 +409,13 @@ Get a list of all cases in a pre select which are in listId
 @return []PreObj: list of preObj from listPreObj, where the channel is in listId
 */
 func compaire(listId []uint32, listPreObj []PreObj) []PreObj {
-  res := make([]PreObj, 0)
-  for _, id := range listId {
-    for _, pre := range listPreObj {
-      if id == pre.id {
-        res = append(res, pre)
-      }
-    }
-  }
-  return res
+	res := make([]PreObj, 0)
+	for _, id := range listId {
+		for _, pre := range listPreObj {
+			if id == pre.id {
+				res = append(res, pre)
+			}
+		}
+	}
+	return res
 }
