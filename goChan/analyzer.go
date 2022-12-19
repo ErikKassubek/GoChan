@@ -50,7 +50,7 @@ func RunAnalyzer() {
 	resString = append(resString, rs...)
 
 	if ok, c := checkForDanglingEvents(); ok {
-		fmt.Println("Found dangling Events")
+		resString = append(resString, "Found dangling Events")
 		vcTrace := buildVectorClockChan(c)
     rs := findAlternativeCommunication(vcTrace)
     res = true

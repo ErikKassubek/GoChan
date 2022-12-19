@@ -90,7 +90,7 @@ func checkForDanglingEvents() (bool, []uint32) {
 			switch pre := elem.(type) {
 			case *TracePre:
 				b := false
-				for j := i + 1; j < len(trace); j++ {
+				for j := i + 1; j < len(trace) && j <= i + 1; j++ {
 					switch post := trace[j].(type) {
 					case *TracePost:
 						if pre.chanId == post.chanId && pre.send == post.send {
@@ -105,7 +105,27 @@ func checkForDanglingEvents() (bool, []uint32) {
 					res = true
 					resChan = append(resChan, pre.chanId)
 				}
-			}
+      case *TracePreSelect:
+        b = false
+        if pre.def {  // no dangeling possible, if a default exist
+          break
+        }
+        for j := i + 1; j < len(trace) && j <= i + 1; j++ {
+          switch post := trace[j].(type) {
+          case *TracePost:
+            if containsChan(pre.chanIds, post) {
+              b = true
+            }
+          }
+          if b {
+            break
+          }           
+        }
+        if !b {
+          res = true
+          resChan = append(resChan, post.chanId)
+        }
+      }
 		}
 	}
 	return res, resChan
@@ -243,9 +263,9 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 	}
   res_string := make([]string, 0)
   for send, recs := range collection {
-    res := fmt.Sprintf("Alternative Communication Partners:\n    %s", send)
+    res := fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
     for _, rec := range recs {
-      res += fmt.Sprintf("\n        %s", rec)
+      res += fmt.Sprintf("\n  -> %s", rec)
     }
     res_string = append(res_string, res)
   }
@@ -330,4 +350,20 @@ func contains(list []uint32, elem uint32) bool {
 		}
 	}
 	return false
+}
+
+/*
+Check if a TracePost corresponds to an element in an PreOps list 
+created by an TracePreSelect
+@param list []PreOps: list of PreOps elements
+@param elem TracePost: post event
+@return bool: true, if elem corresponds to an element in list, false otherwise 
+*/
+func containsChan(list []PreOps, elem TracePost) -> bool {
+  for _, pre := range list {
+    if pre.chanId == elem.chanId && pre.receive != elem.send {
+      return true
+    } 
+  }
+  return false
 }
