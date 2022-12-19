@@ -82,7 +82,6 @@ Check for dangling events (events with pro but without post)
 @return []uint32: list of chan with dangling events
 */
 func checkForDanglingEvents() (bool, []uint32) {
-	PrintTrace()
 	res := false
 	resChan := make([]uint32, 0)
 	for _, trace := range traces {
@@ -139,7 +138,6 @@ Function to build a vector clock for a trace
 @return []vcn: List of send and receive with pre and post vector clock annotation
 */
 func buildVectorClockChan(c []uint32) []vcn {
-	// PrintTrace()
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 
