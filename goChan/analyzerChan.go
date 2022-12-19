@@ -207,7 +207,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 	for i, trace := range traces {
 		for j, elem := range trace {
 			switch pre := elem.(type) {
-			case *TracePre: // notmal pre
+			case *TracePre: // normal pre
 				if contains(c, pre.chanId) {
 					b := false
 					for k := j + 1; k < len(trace); k++ {
@@ -230,9 +230,41 @@ func buildVectorClockChan(c []uint32) []vcn {
 						}
 						vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
-
 					}
 				}
+      case *TracePreSelect:  // pre of select:
+        channels := compaire(c, pre.chanIds)
+        b1 := false 
+        for _, channel := range channels {
+          b2 := false
+          for k := j + 1; k < len(trace); k++ {
+            switch post := trace[k].(type) {
+            case *TracePost:
+              if post.chanId == channel.id { 
+								vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
+									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+                b1 = true
+								b2 = true
+              }  
+            }
+            if b2 {
+              break
+            }
+          }
+          if b1 {
+            break
+          }
+        }
+        if !b1 {  // dangling event
+          for _, channel := range channels {
+						post_default_clock := make([]int, len(traces))
+						for i := 0; i < len(traces); i++ {
+							post_default_clock[i] = math.MaxInt
+						}
+						vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
+							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
+          }
+        }
 			}
 		}
 	}
@@ -368,4 +400,22 @@ func containsChan(elem *TracePost, list []PreObj) bool {
     } 
   }
   return false
+}
+
+/*
+Get a list of all cases in a pre select which are in listId
+@param listId []uint32: list of ids
+@param listPreObj []PreObj: list of PreObjs as created by a pre select
+@return []PreObj: list of preObj from listPreObj, where the channel is in listId
+*/
+func compaire(listId []uint32, listPreObj []PreObj) []PreObj {
+  res := make([]PreObj, 0)
+  for _, id := range listId {
+    for _, pre := range listPreObj {
+      if id == pre.id {
+        res = append(res, pre)
+      }
+    }
+  }
+  return res
 }
