@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import (
 	"fmt"
@@ -104,26 +104,30 @@ func checkForDanglingEvents() (bool, []uint32) {
 					res = true
 					resChan = append(resChan, pre.chanId)
 				}
-			case *TracePreSelect:
-				b := false
-				if pre.def { // no dangeling possible, if a default exist
-					break
-				}
-				for j := i + 1; j < len(trace) && j <= i+1; j++ {
-					switch post := trace[j].(type) {
-					case *TracePost:
-						if containsChan(post, pre.chanIds) {
-							b = true
+			case *TracePreSelect: // pre of select:
+				b1 := false
+				for _, channel := range pre.chanIds {
+					b2 := false
+					for k := i + 1; k < len(trace); k++ {
+						switch post := trace[k].(type) {
+						case *TracePost:
+							if post.chanId == channel.id {
+								b1 = true
+								b2 = true
+							}
+						}
+						if b2 {
+							break
 						}
 					}
-					if b {
+					if b1 {
 						break
 					}
 				}
-				if !b {
+				if !b1 { // dangling event
 					res = true
-					for _, preChan := range pre.chanIds {
-						resChan = append(resChan, preChan.id)
+					for _, channel := range pre.chanIds {
+						resChan = append(resChan, channel.id)
 					}
 				}
 			}
@@ -252,6 +256,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 					}
 				}
 				if !b1 { // dangling event
+					fmt.Println("select")
 					for _, channel := range pre.chanIds {
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
@@ -309,10 +314,10 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 
 /*
 Function to find impossible cases in select statements
-@param vsTrace []vcn: list of vector-clock annotated events
+@param vcTrace []vcn: list of vector-clock annotated events
 @return []string: list of found cases of impossible cases in selects
 */
-func checkForImpossibleSelectStatements(vsTrace []vcn) []string {
+func checkForImpossibleSelectStatements(vcTrace []vcn) []string {
 	res := make([]string, 0)
 	// search for pre select
 	for _, trace := range traces {
@@ -321,24 +326,26 @@ func checkForImpossibleSelectStatements(vsTrace []vcn) []string {
 			case *TracePreSelect:
 				// get pre vector clock of preSelect
 				var preVc []int
-				for _, clock := range vsTrace {
+				var postVc []int
+				for _, clock := range vcTrace {
 					if sel.position == clock.position {
 						preVc = clock.pre
+						postVc = clock.post
 					}
 				}
 				// go through all cases
-				for _, c := range sel.chanIds {
+				for i, c := range sel.chanIds {
 					// find possible pre vector clocks
 					b := false
-					for _, vc := range vsTrace {
-						if vc.id == c.id && !vcUnComparable(preVc, vc.pre) {
+					for _, vc := range vcTrace {
+						if vc.id == c.id && vc.send != c.receive && !vcUnComparable(preVc, vc.pre) && !vcUnComparable(postVc, vc.post) {
 							b = true
 							break
 						}
 					}
 					if !b {
-						res = append(res, fmt.Sprintf("Impossible Select Case Detected\n   %s\n   Case with Channel %d",
-							sel.position, c.id))
+						res = append(res, fmt.Sprintf("Impossible Select Case Detected\n   %s\n   Case %d with Channel %d",
+							sel.position, i+1, c.id))
 					}
 
 				}
