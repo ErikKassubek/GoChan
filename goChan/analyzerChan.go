@@ -82,6 +82,7 @@ Check for dangling events (events with pro but without post)
 @return []uint32: list of chan with dangling events
 */
 func checkForDanglingEvents() (bool, []uint32) {
+	PrintTrace()
 	res := false
 	resChan := make([]uint32, 0)
 	for _, trace := range traces {
@@ -105,6 +106,9 @@ func checkForDanglingEvents() (bool, []uint32) {
 					resChan = append(resChan, pre.chanId)
 				}
 			case *TracePreSelect: // pre of select:
+				if pre.def {
+					continue // no dangeling events if default
+				}
 				b1 := false
 				for _, channel := range pre.chanIds {
 					b2 := false
@@ -162,9 +166,9 @@ func buildVectorClockChan(c []uint32) []vcn {
 
 	for i, elem := range traceTotal {
 
-		// fmt.Print("(", elem.routine + 1, ", ")
+		// int("(", elem.routine + 1, ", ")
 		// elem.elem.PrintElement()
-		// fmt.Println(")")
+		// intln(")")
 
 		switch e := elem.elem.(type) {
 		case *TraceSignal:
@@ -201,7 +205,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 			vectorClocks[i+1] = vectorClocks[i]
 		}
 
-		// fmt.Println(vectorClocks[i+1])
+		// intln(vectorClocks[i+1])
 	}
 	// build vector clock anotated traces
 	vcTrace := make([]vcn, 0)
@@ -256,7 +260,6 @@ func buildVectorClockChan(c []uint32) []vcn {
 					}
 				}
 				if !b1 { // dangling event
-					fmt.Println("select")
 					for _, channel := range pre.chanIds {
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
@@ -338,7 +341,7 @@ func checkForImpossibleSelectStatements(vcTrace []vcn) []string {
 					// find possible pre vector clocks
 					b := false
 					for _, vc := range vcTrace {
-						if vc.id == c.id && vc.send != c.receive && !vcUnComparable(preVc, vc.pre) && !vcUnComparable(postVc, vc.post) {
+						if vc.id == c.id && vc.send != c.receive && (!vcUnComparable(preVc, vc.pre) || !vcUnComparable(postVc, vc.post)) {
 							b = true
 							break
 						}
