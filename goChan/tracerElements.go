@@ -144,6 +144,7 @@ Struct for a post in the trace.
 @field send bool: true if it is a preSend, false otherwise
 @field senderId: id of the sender of the message
 @field senderTimestamp: timestamp of the sender at send
+@field noComs: if send, number of send on the channel, if read number of read (after the post)
 */
 type TracePost struct {
 	position        string
@@ -152,6 +153,7 @@ type TracePost struct {
 	send            bool
 	senderId        uint32
 	senderTimestamp uint32
+	noComs          int
 }
 
 /*
@@ -170,10 +172,10 @@ Function to print the post trace element
 func (tp *TracePost) PrintElement() {
 	if tp.send {
 		direction := "!"
-		fmt.Printf("post(%d, %d, %d%s)", tp.timestamp, tp.senderId, tp.chanId, direction)
+		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.noComs)
 	} else {
 		direction := "?"
-		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.senderTimestamp)
+		fmt.Printf("post(%d, %d, %d%s, %d, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.senderTimestamp, tp.noComs)
 	}
 }
 

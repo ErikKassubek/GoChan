@@ -57,17 +57,18 @@ func RunAnalyzer() {
 		rs := findAlternativeCommunication(vcTrace)
 		res = true
 		if len(rs) == 0 {
-			resString = append(resString, fmt.Sprintf("No alternative communication could be found"))
+			resString = append(resString, "No alternative communication could be found")
 		} else {
 			resString = append(resString, rs...)
 		}
 	}
+	r, rs = checkForNonEmptyChan(vcTrace)
+	res = res || r
+	resString = append(resString, rs...)
 
-	rs = checkForImpossibleSelectStatements(vcTrace)
-	if len(rs) != 0 {
-		resString = append(resString, rs...)
-		res = true
-	}
+	r, rs = checkForImpossibleSelectStatements(vcTrace)
+	res = res || r
+	resString = append(resString, rs...)
 
 	tracesLock.Unlock()
 

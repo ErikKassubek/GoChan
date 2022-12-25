@@ -1,4 +1,4 @@
-package main
+package goChan
 
 import (
 	"fmt"
@@ -41,6 +41,7 @@ Struct to save the pre and post vector clocks of a channel operation
 @field send bool: true if it is a send event, false otherwise
 @field pre []uint32: pre vector clock
 @field post []uint32: post vector clock
+@field noComs: if send number of completed sends on the channel, otherwise number of completed receives
 */
 type vcn struct {
 	id       uint32
@@ -49,6 +50,7 @@ type vcn struct {
 	send     bool
 	pre      []int
 	post     []int
+	noComs   int
 }
 
 /*
@@ -220,7 +222,8 @@ func buildVectorClockChan(c []uint32) []vcn {
 					case *TracePost:
 						if post.chanId == pre.chanId {
 							vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
-								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
+								noComs: post.noComs})
 							b = true
 						}
 					}
@@ -234,7 +237,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 						post_default_clock[i] = math.MaxInt
 					}
 					vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
-						pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
+						pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
 
 				}
 			case *TracePreSelect: // pre of select:
@@ -246,7 +249,8 @@ func buildVectorClockChan(c []uint32) []vcn {
 						case *TracePost:
 							if post.chanId == channel.id {
 								vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
-									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
+									noComs: post.noComs})
 								b1 = true
 								b2 = true
 							}
@@ -266,7 +270,7 @@ func buildVectorClockChan(c []uint32) []vcn {
 							post_default_clock[i] = math.MaxInt
 						}
 						vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
-							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
+							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
 					}
 				}
 			}
@@ -287,26 +291,25 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 		for j := i + 1; j < len(vcTrace); j++ {
 			elem1 := vcTrace[i]
 			elem2 := vcTrace[j]
-			if elem1.id != elem2.id {
+			if elem1.id != elem2.id { // must be same channel
 				continue
 			}
-			if vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post) {
-				if elem1.send && !elem2.send {
-					collection[elem1.position] = append(collection[elem1.position], elem2.position)
-				} else if elem2.send && !elem1.send {
-					collection[elem2.position] = append(collection[elem2.position], elem1.position)
-				}
+			if elem1.send == elem2.send { // must be send and receive
+				continue
+			}
+			if !elem1.send { // swap elems sucht that 1 is send and 2 is receive
+				elem1, elem2 = elem2, elem1
+			}
+			if (getChanSize(elem1.id) == 0) && (vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post)) ||
+				(getChanSize(elem1.id) != 0 && elem1.noComs == elem2.noComs) {
+				collection[elem1.position] = append(collection[elem1.position], elem2.position)
 			}
 		}
 	}
 	res_string := make([]string, 0)
 	for send, recs := range collection {
 		res := ""
-		if len(recs) <= 1 {
-			res = fmt.Sprintf("No Alternative Communication Partners for:\n  %s", send)
-		} else {
-			res = fmt.Sprintf("Alternative Communication Partners:\n  %s", send)
-		}
+		res = fmt.Sprintf("Possible Communication Partners:\n  %s", send)
 		for _, rec := range recs {
 			res += fmt.Sprintf("\n  -> %s", rec)
 		}
@@ -318,10 +321,12 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 /*
 Function to find impossible cases in select statements
 @param vcTrace []vcn: list of vector-clock annotated events
+@return bool: true if impossible select statement was found, false otherwise
 @return []string: list of found cases of impossible cases in selects
 */
-func checkForImpossibleSelectStatements(vcTrace []vcn) []string {
+func checkForImpossibleSelectStatements(vcTrace []vcn) (bool, []string) {
 	res := make([]string, 0)
+	r := false
 	// search for pre select
 	for _, trace := range traces {
 		for _, elem := range trace {
@@ -349,13 +354,50 @@ func checkForImpossibleSelectStatements(vcTrace []vcn) []string {
 					if !b {
 						res = append(res, fmt.Sprintf("Impossible Select Case Detected\n   %s\n   Case %d with Channel %d",
 							sel.position, i+1, c.id))
+						r = true
 					}
 
 				}
 			}
 		}
 	}
-	return res
+	return r, res
+}
+
+/*
+Check for buffered channels where a message was written to the channel but
+never read
+@param vcTrace []vcn: vector clock annotated trace
+@return bool: true if an non empty chan was found, false otherwise
+@return []string: messages
+*/
+func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
+	numberMessages := make(map[uint32]int)
+	resString := make([]string, 0)
+	res := false
+	for _, message := range vcTrace {
+		_, ok := numberMessages[message.id]
+		if !ok {
+			numberMessages[message.id] = 0
+		}
+		if message.send {
+			if message.post[0] < math.MaxInt {
+				numberMessages[message.id]++
+			}
+		} else {
+			if message.post[0] < math.MaxInt {
+				numberMessages[message.id]--
+			}
+		}
+	}
+	for key, value := range numberMessages {
+		if value == 0 {
+			continue
+		}
+		resString = append(resString, fmt.Sprintf("Unread message in Channel %d", key))
+		res = true
+	}
+	return res, resString
 }
 
 /*
@@ -474,4 +516,16 @@ func compaire(listId []uint32, listPreObj []PreObj) []PreObj {
 		}
 	}
 	return res
+}
+
+/*
+Get the capacity of a channel
+@param index int: id of the channel
+@return int: size of the channel
+*/
+func getChanSize(index uint32) int {
+	chanSizeLock.Lock()
+	size := chanSize[index]
+	chanSizeLock.Unlock()
+	return size
 }

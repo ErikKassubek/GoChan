@@ -18,7 +18,7 @@ For the tracer, channel functionality is replaced by costum functions to create 
 ## Example
 Let's look at the following code:
 ```
-package main
+package goChan
 
 import (
 	"math/rand"
@@ -84,7 +84,7 @@ func main() {
 ```
 By the [instrumenter](https://github.com/ErikKassubek/GoChan/tree/main/instrumenter) it gets translated into
 ```
-package main
+package goChan
 
 import (
 	"math/rand"
@@ -194,10 +194,10 @@ One possible trace of the program is
 [5: 0, 1: 0, 2: 0, 3: 1, 4: 0]
 [
 [signal(1, 2), signal(2, 3), signal(3, 4), signal(4, 5), pre(23, 3?, 4?, 5!, default), post(24, default)]
-[wait(16, 2), pre(17, 2!), post(19, 2, 2!)]
+[wait(16, 2), pre(17, 2!), post(19, 2, 2!, 1)]
 [wait(8, 3), lock(18, 2, -, 1), pre(22, 2?)]
-[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!), pre(13, 2?), post(20, 2, 2?, 17), unlock(21, 1)]
-[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11), unlock(15, 2)]
+[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!, 1), pre(13, 2?), post(20, 2, 2?, 17, 1), unlock(21, 1)]
+[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11, 1), unlock(15, 2)]
 ]
 ```
 Every line represents a routine (the first line is the main routine).
@@ -207,9 +207,9 @@ The elements have the following meaning:
 |signal(t, i) | a new routine with id = i has been created from the current routine|
 |wait(t, i)| the current, non main routine was started with id = i|
 |pre(t, i!)| the routine has reached a state, where channel i is supposed to send, but has not send yet|
-|post(t, i, k!) | the channel k has successfully send its data in routine i with time step j|
+|post(t, i, k!, w) | the channel k has successfully send its data in routine i with time step j. It is the w-th send on this channel|
 |pre(t, i?)|the routine has reached a state, where channel i is supposed to receive, but has not received yet|
-|post(t, i, k?, j)|the channel k has successfully received its data from routine i with time step j of routine i|
+|post(t, i, k?, j, w)|the channel k has successfully received its data from routine i with time step j of routine i. It was the w-th receive on the channel|
 |pre(t, i?, j?, k?)| the routine has reached a select statements with cases for channels i, j and k. The select statement does not contain a default case. The statement has not yet executed.|
 |pre(t, i?, j?, k?, default)| the routine has reached a select statements with cases for channels i, j and k. The select statement does contain a default case. The statement has not yet executed.|
 |post(t, default)|The switch statement has executed and chosen the default case.|
