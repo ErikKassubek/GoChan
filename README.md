@@ -199,10 +199,11 @@ One possible trace for the program is
 [5: 0, 1: 0, 2: 0, 3: 1, 4: 0]
 [
 [signal(1, 2), signal(2, 3), signal(3, 4), signal(4, 5), pre(23, 3?, 4?, 5!, default), post(24, default)]
-[wait(16, 2), pre(17, 2!), post(19, 2, 2!)]
+[wait(16, 2), pre(17, 2!), post(19, 2, 2!, 1)]
 [wait(8, 3), lock(18, 2, -, 1), pre(22, 2?)]
-[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!), pre(13, 2?), post(20, 2, 2?, 17), unlock(21, 1)]
-[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11), unlock(15, 2)]
+[wait(9, 4), lock(10, 1, -, 1), pre(11, 3!), post(12, 4, 3!, 1), pre(13, 2?), post(20, 2, 2?, 17, 1), unlock(21, 1)]
+[wait(5, 5), lock(6, 2, r, 1), pre(7, 3?), post(14, 4, 3?, 11, 1), unlock(15, 2)]
 ]
 ```
+
 An explenation of the trace can be found in [goChan](https://github.com/ErikKassubek/GoChan/tree/main/goChan).
