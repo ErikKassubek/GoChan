@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import "fmt"
 
@@ -50,21 +50,25 @@ func RunAnalyzer() {
 	resString = append(resString, rs...)
 
 	ok, c := checkForDanglingEvents()
+	res = res || ok
 	vcTrace := buildVectorClockChan(c)
-	if ok {
-		resString = append(resString, "Found dangling Events")
-		// fmt.Println(vcTrace)
-		rs := findAlternativeCommunication(vcTrace)
-		res = true
-		if len(rs) == 0 {
-			resString = append(resString, "No alternative communication could be found")
-		} else {
-			resString = append(resString, rs...)
-		}
-	}
+
 	r, rs = checkForNonEmptyChan(vcTrace)
 	res = res || r
 	resString = append(resString, rs...)
+
+	if ok && !r {
+		resString = append(resString, "Found dangling Events")
+	} else if !ok && r {
+		resString = append(resString, "Found non-empty Channel")
+	} else if ok && r {
+		resString = append(resString, "Found dangling Events and non-empty Channel")
+	}
+	// fmt.Println(vcTrace)
+	if ok || r {
+		rs = findAlternativeCommunication(vcTrace)
+		resString = append(resString, rs...)
+	}
 
 	r, rs = checkForImpossibleSelectStatements(vcTrace)
 	res = res || r

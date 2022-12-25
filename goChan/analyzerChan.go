@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import (
 	"fmt"
