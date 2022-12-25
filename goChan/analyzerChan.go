@@ -1,4 +1,4 @@
-package main
+package goChan
 
 import (
 	"fmt"
@@ -144,10 +144,9 @@ func checkForDanglingEvents() (bool, []uint32) {
 
 /*
 Function to build a vector clock for a trace
-@param c []uint32: List of chan ids with dangling post
 @return []vcn: List of send and receive with pre and post vector clock annotation
 */
-func buildVectorClockChan(c []uint32) []vcn {
+func buildVectorClockChan() []vcn {
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 

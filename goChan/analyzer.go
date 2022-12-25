@@ -1,4 +1,4 @@
-package main
+package goChan
 
 import "fmt"
 
@@ -49,9 +49,9 @@ func RunAnalyzer() {
 	res = res || r
 	resString = append(resString, rs...)
 
-	ok, c := checkForDanglingEvents()
+	ok, _ := checkForDanglingEvents()
 	res = res || ok
-	vcTrace := buildVectorClockChan(c)
+	vcTrace := buildVectorClockChan()
 
 	r, rs = checkForNonEmptyChan(vcTrace)
 	res = res || r
