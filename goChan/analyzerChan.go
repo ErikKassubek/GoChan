@@ -346,7 +346,7 @@ func checkForImpossibleSelectStatements(vcTrace []vcn) (bool, []string) {
 					// find possible pre vector clocks
 					b := false
 					for _, vc := range vcTrace {
-						if vc.id == c.id && vc.send == c.receive && (vcUnComparable(preVc, vc.pre) || vcUnComparable(postVc, vc.post)) {
+						if vc.id == c.id && vc.send != c.receive && (!vcUnComparable(preVc, vc.pre) || !vcUnComparable(postVc, vc.post)) {
 							b = true
 							break
 						}
