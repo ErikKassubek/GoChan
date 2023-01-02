@@ -111,7 +111,7 @@ func instrument_go_file(file_path string) error {
 	fmt.Printf("Instrument file: %s\n", file_path)
 
 	if instrumentChan {
-		instrument_chan(f)
+		instrument_chan(f, astSet)
 	}
 
 	if instrumentMutex {

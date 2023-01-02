@@ -1,0 +1,60 @@
+package main
+
+import (
+	"fmt"
+	"os/exec"
+	"math/rand"
+)
+
+var switch_size = make(map[int]int) // id -> size
+
+/*
+Element to save a switch order
+@field id int: id of the switch
+@field c int: chosen case
+*/
+type switchOrderElem struct {
+	id int
+	c  int
+}
+
+/*
+Get a string from a switch order
+@return string: string representing the switch order
+*/
+func toString(soe []switchOrderElem) string {
+	res := "["
+	for i, c := range soe {
+		res += "(" + fmt.Sprint(c.id) + ", " + fmt.Sprint(c.c) + ")"
+		if i != len(soe)-1 {
+			res += ","
+		}
+	}
+	res += "]"
+	return res
+}
+
+func main() {
+	$$SWITCH_SIZE$$
+
+	queue := make([][]switchOrderElem, 0)
+
+	first_order := make([]switchOrderElem, 0)
+	for key, size := range switch_size {
+		first_order = append(first_order, switchOrderElem{id: key, c: rand.Intn(size)})
+	}
+	queue = append(queue, first_order)
+
+	for len(queue) != 0 {
+		order := queue[0]
+		queue = queue[1:]
+
+		cmd := exec.Command("$$COMMAND$$ -order=\"" + toString(order) + "\"")
+
+		output, err := cmd.Output()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Println(string(output))
+	}
+}

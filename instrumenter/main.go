@@ -31,7 +31,10 @@ main function and handling of command line arguments
 import (
 	"errors"
 	"flag"
+	"fmt"
+	"os"
 	"runtime"
+	"strings"
 )
 
 var path_separator string = "/"
@@ -41,8 +44,7 @@ var instrumentMutex bool
 
 var in string
 var out string
-
-var show_trace bool
+var execName string
 
 var n_repl int = 0
 
@@ -52,17 +54,16 @@ func command_line_args() error {
 	instrumentMutex_ := flag.Bool("mut", false, "instrument for mutex")
 	flag.StringVar(&in, "in", "", "input path")
 	flag.StringVar(&out, "out", "."+path_separator+"output"+path_separator, "output path")
-	show_trace_ := flag.Bool("show_trace", false, "show the trace")
+	flag.StringVar(&execName, "exec", "main", "name of created executable")
 
 	flag.Parse()
 
 	instrumentChan = *instrumentChan_
 	instrumentMutex = *instrumentMutex_
-	show_trace = *show_trace_
 
 	if in == "" {
 		return errors.New("flag -in missing or incorrect.\n" +
-			"usage: go run main.go -in=[pathToFiles] <-out=[path_to_folder]> <-print_trace>)")
+			"usage: go run main.go -in=[pathToFiles] <-out=[path_to_folder]>)")
 	}
 
 	// add trailing path separator to in
@@ -104,4 +105,49 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// create the new main file
+
+	// read template
+	dat, err := os.ReadFile("./instrumenter/main_template.txt")
+	if err != nil {
+		dat, err = os.ReadFile("./main_template.txt")
+		if err != nil {
+			panic(err)
+		}
+	}
+	data := string(dat)
+
+	path := ""
+
+	for _, f := range file_name {
+		file_path_split := strings.Split(f, path_separator)
+		if file_path_split[len(file_path_split)-1] == "main.go" {
+			path = f
+		}
+	}
+
+	if path == "" {
+		panic("Could not find main file!")
+	}
+
+	path = strings.Replace(path, "main.go", execName, -1)
+
+	// replace placeholder
+	data = strings.Replace(data, "$$COMMAND$$", "./"+path, -1)
+
+	save_size := ""
+	for _, sw := range select_ops {
+		save_size += "switch_size[" + fmt.Sprint(sw.id) + "] = " + fmt.Sprint(sw.size) + "\n"
+	}
+
+	data = strings.Replace(data, "$$SWITCH_SIZE$$", save_size, -1)
+
+	f, err := os.Create(out + "main.go")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	f.Write([]byte(data))
 }

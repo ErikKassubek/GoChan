@@ -11,17 +11,11 @@ into code usable by [GoChan](https://github.com/ErikKassubek/GoChan/tree/main/go
 ## How to use
 To use goChan, run 
 ```
-cd instrumenter
-go build
-cd ..
+make -IN="<input folder>" -EXEC="<executable name>"
+```
+input folder is the relative folder, where the code is stored.
+executable name is the name of the executable produced by the code, which is translated
+The translated files can be found in ./output
 
-./instrumenter/instrumenter -chan -mut -in=[input_folder] <-out=[outout_folder]> <-show_trace>
-```
-The tags -out and -show trace are not mandatory.
-The translated files can be found in [output_folder] or ./output, if out was not specified.
-
-To use goChan, 
-```
-go get github.com/ErikKassubek/GoChan/goChan
-```
-must be installed on the output files.
+The program can now by run by running the main executable in the ./output
+folder. 

@@ -39,12 +39,25 @@ import (
 )
 
 /*
+Type for the select_ops list
+@field id int: id of the select statement
+@field size int: number of cases (incl. default) of the select
+*/
+type select_op struct {
+	id   int
+	size int
+}
+
+// collect select cases with (id, no of cases)
+var select_ops = make([]select_op, 0)
+
+/*
 Function to instrument a given ast.File with channels. Channels and operation
 of this channels are replaced by there goChan equivalent.
 @param f *ast.File: ast file to instrument
 @return error: error or nil
 */
-func instrument_chan(f *ast.File) error {
+func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 	// add the import of the goChan library
 	add_goChan_import(f)
 
@@ -55,9 +68,7 @@ func instrument_chan(f *ast.File) error {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
-				if show_trace {
-					add_run_analyzer(n)
-				}
+				add_run_analyzer(n)
 				add_init_call(n)
 			} else {
 				instrument_function_declarations(n, c)
@@ -91,7 +102,7 @@ func instrument_chan(f *ast.File) error {
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(n, c)
 		case *ast.SelectStmt: // handel select statements
-			instrument_select_statements(n, c)
+			instrument_select_statements(n, c, astSet)
 		case *ast.RangeStmt: // range
 			instrument_range_stm(n)
 		}
@@ -839,8 +850,9 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 }
 
 // instrument select statements
-func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
+func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet *token.FileSet) {
 	// collect cases and replace <-i with i.GetChan()
+	select_id := rand.Intn(899999999) + 100000000 // create random id for select statement (9 digit number)
 	caseNodes := n.Body.List
 	cases := make([]string, 0)
 	cases_receive := make([]string, 0)
@@ -1014,7 +1026,55 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 
 	block.List = append(block.List, n)
 
-	cur.Replace(block)
+	// collect select options
+	size := len(cases)
+	if d {
+		size++
+	}
+	select_ops = append(select_ops, select_op{id: select_id, size: size})
+
+	// transform to select with switch
+	original_select := block.List[1].(*ast.SelectStmt)
+
+	switch_statement := &ast.SwitchStmt{
+		Tag:  &ast.Ident{Name: "goChanFetchOrder[" + fmt.Sprint(select_id) + "]"},
+		Body: &ast.BlockStmt{},
+	}
+
+	for i, c := range block.List[1].(*ast.SelectStmt).Body.List {
+		switch_statement.Body.List = append(switch_statement.Body.List,
+			&ast.CaseClause{
+				List: []ast.Expr{&ast.Ident{Name: fmt.Sprint(i)}},
+				Body: []ast.Stmt{&ast.SelectStmt{
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							c,
+							&ast.CommClause{
+								Comm: &ast.ExprStmt{
+									X: &ast.CallExpr{
+										Fun: &ast.Ident{
+											Name: "<- time.After",
+										},
+										Args: []ast.Expr{&ast.Ident{Name: "goChanWaitTime"}},
+									},
+								},
+								Body: []ast.Stmt{original_select},
+							},
+						},
+					},
+				}},
+			})
+	}
+	switch_statement.Body.List = append(switch_statement.Body.List,
+		&ast.CaseClause{
+			Body: []ast.Stmt{
+				original_select,
+			},
+		})
+
+	cur.Replace(switch_statement)
+
+	// add T and
 }
 
 // get name
