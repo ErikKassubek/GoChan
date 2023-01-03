@@ -9,7 +9,7 @@ build_instrumenter:
 
 run_instrumenter:
 	@echo ============= Instrument files =============
-	@./instrumenter/instrumenter -in="$(IN)" -exec="$(EXEC)" -chan -mut
+	@./instrumenter/instrumenter -in="$(IN)" -exec="$(EXEC)"
 	@cd output; go build ./main.go
 
 build_prog:

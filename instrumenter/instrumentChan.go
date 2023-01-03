@@ -38,6 +38,8 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+const WAITING_TIME string = "time.Second"
+
 /*
 Type for the select_ops list
 @field id int: id of the select statement
@@ -61,6 +63,8 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 	// add the import of the goChan library
 	add_goChan_import(f)
 
+	var main_func *ast.FuncDecl
+
 	// first pass-through to instrument main function and function declarations
 	astutil.Apply(f, nil, func(c *astutil.Cursor) bool {
 		n := c.Node()
@@ -70,6 +74,7 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
 				add_run_analyzer(n)
 				add_init_call(n)
+				main_func = n
 			} else {
 				instrument_function_declarations(n, c)
 			}
@@ -109,6 +114,10 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 
 		return true
 	})
+
+	if len(select_ops) > 0 {
+		add_order_in_main(main_func)
+	}
 
 	return nil
 }
@@ -186,7 +195,62 @@ func add_init_call(n *ast.FuncDecl) {
 	n.Body.List = body
 }
 
-// add function to show the trace
+/*
+Function to add order inforcement structure and command line argument receiver
+@param n *ast.FuncDecl: main function declaration in ast
+@return: nil
+*/
+func add_order_in_main(n *ast.FuncDecl) {
+	body := n.Body.List
+
+	if body == nil {
+		return
+	}
+
+	body = append([]ast.Stmt{
+		&ast.ExprStmt{
+			X: &ast.Ident{Name: "goChanFetchOrder := make(map[int]int)"},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{
+				Name: "var order string",
+			},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{
+				Name: "flag.StringVar(&order, \"order\", \"\", \"order\")",
+			},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{
+				Name: "flag.Parse()",
+			},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{
+				Name: "order_split := strings.Split(order, \";\")",
+			},
+		},
+		&ast.ExprStmt{
+			X: &ast.Ident{
+				Name: "for _, ord := range order_split { " +
+					"ord_split := strings.Split(ord, \",\"); " +
+					"id, err1 := strconv.Atoi(ord_split[0]);" +
+					"c, err2 := strconv.Atoi(ord_split[1]);" +
+					"if (err1 == nil && err2 == nil) {" +
+					"goChanFetchOrder[id] = c}}",
+			},
+		},
+	}, body...)
+
+	n.Body.List = body
+}
+
+/*
+Add a defer statement to run the analyzer
+@param n *ast.FuncDecl: ast function declaration
+@return nil
+*/
 func add_run_analyzer(n *ast.FuncDecl) {
 	n.Body.List = append([]ast.Stmt{
 		&ast.ExprStmt{
@@ -1055,7 +1119,7 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet
 										Fun: &ast.Ident{
 											Name: "<- time.After",
 										},
-										Args: []ast.Expr{&ast.Ident{Name: "goChanWaitTime"}},
+										Args: []ast.Expr{&ast.Ident{Name: WAITING_TIME}},
 									},
 								},
 								Body: []ast.Stmt{original_select},

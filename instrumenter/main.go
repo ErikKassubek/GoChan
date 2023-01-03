@@ -39,27 +39,17 @@ import (
 
 var path_separator string = "/"
 
-var instrumentChan bool
-var instrumentMutex bool
-
 var in string
 var out string
 var execName string
 
-var n_repl int = 0
-
 // read command line arguments
 func command_line_args() error {
-	instrumentChan_ := flag.Bool("chan", false, "instrument for channel")
-	instrumentMutex_ := flag.Bool("mut", false, "instrument for mutex")
 	flag.StringVar(&in, "in", "", "input path")
 	flag.StringVar(&out, "out", "."+path_separator+"output"+path_separator, "output path")
 	flag.StringVar(&execName, "exec", "main", "name of created executable")
 
 	flag.Parse()
-
-	instrumentChan = *instrumentChan_
-	instrumentMutex = *instrumentMutex_
 
 	if in == "" {
 		return errors.New("flag -in missing or incorrect.\n" +

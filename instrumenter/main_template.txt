@@ -23,14 +23,13 @@ Get a string from a switch order
 @return string: string representing the switch order
 */
 func toString(soe []switchOrderElem) string {
-	res := "["
+	res := ""
 	for i, c := range soe {
-		res += "(" + fmt.Sprint(c.id) + ", " + fmt.Sprint(c.c) + ")"
+		res += fmt.Sprint(c.id) + "," + fmt.Sprint(c.c)
 		if i != len(soe)-1 {
-			res += ","
+			res += ";"
 		}
 	}
-	res += "]"
 	return res
 }
 
@@ -49,7 +48,12 @@ func main() {
 		order := queue[0]
 		queue = queue[1:]
 
-		cmd := exec.Command("$$COMMAND$$ -order=\"" + toString(order) + "\"")
+		var cmd *exec.Cmd
+		if len(order) == 0 {
+			cmd = exec.Command("$$COMMAND$$")
+		} else {
+			cmd = exec.Command("$$COMMAND$$", "-order=\"" + toString(order) + "\"")
+		}
 
 		output, err := cmd.Output()
 		if err != nil {
