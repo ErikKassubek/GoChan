@@ -87,7 +87,7 @@ Function to print the collected trace.
 @return nil
 */
 func PrintTrace() {
-	// tracesLock.RLock()
+	fmt.Println("#####TRACE#####")
 	fmt.Print("[")
 	i := 0
 	for k, v := range chanSize {
@@ -111,7 +111,7 @@ func PrintTrace() {
 		fmt.Println("]")
 	}
 	fmt.Println("]")
-	// tracesLock.RUnlock()
+	fmt.Println("#####TRACE#####")
 }
 
 /*
