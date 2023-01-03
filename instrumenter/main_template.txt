@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
+var max_runs = 50  // max number of runs 
+var no_failed = 10  // max number of already checked orders
+
 var switch_size = make(map[int]int) // id -> size
 var queue = make([]map[int]int, 0)  // already tested orders
-var no_failed = 10  // max number of already checked orders
 
 /*
 Get a string from a switch order
@@ -39,7 +41,7 @@ func main() {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	for no_failed > 0 {
+	for no_failed > 0  && max_runs > 0 {
 		order_add := make(map[int]int)
 		for key, size := range switch_size {
 			order_add[key] = rand.Intn(size)
@@ -49,6 +51,7 @@ func main() {
 		} else {
 			no_failed -= 1
 		}	
+		max_runs -= 1
 	}
 
 	for len(queue) != 0 {
@@ -62,17 +65,18 @@ func main() {
 			cmd = exec.Command("$$COMMAND$$", "-order=\"" + toString(order) + "\"")
 		}
 
+fmt.Println(cmd)
 		out, err := cmd.Output()
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
 		}
 
 		output := string(out)
 
 		output_split := strings.Split(output, "#####TRACE#####")
 
-		trace := output_split[1]
-		fmt.Println(trace)
+		// trace := output_split[1]
+		// fmt.Println(trace)
 		output = output_split[0] + output_split[2]
 
 		fmt.Println(output)

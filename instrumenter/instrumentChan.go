@@ -1167,9 +1167,19 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet
 			},
 		})
 
-	cur.Replace(switch_statement)
+	j := false
+	for i, c := range block.List {
+		switch c.(type) {
+		case *ast.SelectStmt:
+			block.List[i] = switch_statement
+			j = true
+		}
+		if j {
+			break
+		}
+	}
 
-	// add T and
+	cur.Replace(block)
 }
 
 // get name
