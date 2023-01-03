@@ -72,6 +72,7 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			if n.Name.Obj != nil && n.Name.Obj.Name == "main" {
+				add_goChan_fetch_order(f)
 				add_run_analyzer(n)
 				add_init_call(n)
 				main_func = n
@@ -114,7 +115,6 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 
 		return true
 	})
-
 	if len(select_ops) > 0 {
 		add_order_in_main(main_func)
 	}
@@ -166,6 +166,26 @@ func add_goChan_import(n *ast.File) {
 }
 
 /*
+Add var goChanFetchOrder = make(map[int]int) as global variable
+@param n *ast.File: ast file
+@return nil
+*/
+func add_goChan_fetch_order(n *ast.File) {
+	n.Decls = append(n.Decls, &ast.GenDecl{
+		Tok: token.VAR,
+		Specs: []ast.Spec{
+			&ast.ValueSpec{
+				Names: []*ast.Ident{
+					{
+						Name: "goChanFetchOrder = make(map[int]int)",
+					},
+				},
+			},
+		},
+	})
+}
+
+/*
 Function to add call of goChan.Init(), defer time.Sleep(time.Millisecond)
 and defer goChan.RunAnalyzer() to the main function. The time.Sleep call is used
 to give the go routines a chance to finish there execution.
@@ -208,9 +228,6 @@ func add_order_in_main(n *ast.FuncDecl) {
 	}
 
 	body = append([]ast.Stmt{
-		&ast.ExprStmt{
-			X: &ast.Ident{Name: "goChanFetchOrder := make(map[int]int)"},
-		},
 		&ast.ExprStmt{
 			X: &ast.Ident{
 				Name: "var order string",
@@ -1098,14 +1115,28 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet
 	select_ops = append(select_ops, select_op{id: select_id, size: size})
 
 	// transform to select with switch
-	original_select := block.List[1].(*ast.SelectStmt)
+	var original_select *ast.SelectStmt
+	var original_select_index int
+	b := false
+	for i, c := range block.List {
+		switch c_type := c.(type) {
+		case *ast.SelectStmt:
+			original_select = c_type
+			original_select_index = i
+			b = true
+		default:
+		}
+		if b {
+			break
+		}
+	}
 
 	switch_statement := &ast.SwitchStmt{
 		Tag:  &ast.Ident{Name: "goChanFetchOrder[" + fmt.Sprint(select_id) + "]"},
 		Body: &ast.BlockStmt{},
 	}
 
-	for i, c := range block.List[1].(*ast.SelectStmt).Body.List {
+	for i, c := range block.List[original_select_index].(*ast.SelectStmt).Body.List {
 		switch_statement.Body.List = append(switch_statement.Body.List,
 			&ast.CaseClause{
 				List: []ast.Expr{&ast.Ident{Name: fmt.Sprint(i)}},
