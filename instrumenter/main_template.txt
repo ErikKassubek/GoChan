@@ -77,7 +77,11 @@ fmt.Println(cmd)
 
 		// trace := output_split[1]
 		// fmt.Println(trace)
-		output = output_split[0] + output_split[2]
+	if len(output_split) > 2 {
+			output = output_split[0] + output_split[2]
+		} else {
+			output = output_split[0]
+		}
 
 		fmt.Println(output)
 	}
