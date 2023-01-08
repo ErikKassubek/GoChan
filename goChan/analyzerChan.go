@@ -272,6 +272,9 @@ func buildVectorClockChan() []vcn {
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
 					}
 				}
+			case *TraceClose:
+				vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
+					post: vectorClocks[int(pre.GetTimestamp())][i], noComs: -1})
 			}
 		}
 	}
@@ -290,6 +293,9 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 		for j := i + 1; j < len(vcTrace); j++ {
 			elem1 := vcTrace[i]
 			elem2 := vcTrace[j]
+			if !isComm(elem1) || !isComm(elem2) { // one of the elements is close
+				continue
+			}
 			if elem1.id != elem2.id { // must be same channel
 				continue
 			}
@@ -343,7 +349,7 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 
 				// find possible pre vector clocks
 				for _, vc := range vcTrace {
-					if vc.id == sel.chanId && vc.send && (!vcUnComparable(preVc, vc.pre) || !vcUnComparable(postVc, vc.post)) {
+					if vc.id == sel.chanId && vc.send && (vcUnComparable(preVc, vc.pre) || vcUnComparable(postVc, vc.post)) {
 						r = true
 						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
@@ -381,7 +387,7 @@ func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
 		}
 	}
 	for key, value := range numberMessages {
-		if value == 0 {
+		if value == 0 || value == -1 {
 			continue
 		}
 		resString = append(resString, fmt.Sprintf("Unread message in Channel %d", key))
@@ -518,4 +524,21 @@ func getChanSize(index uint32) int {
 	size := chanSize[index]
 	chanSizeLock.Unlock()
 	return size
+}
+
+/*
+Check wether a vcn describes a communication
+@param v vcn: vcn to test
+@return bool: true is communication, false if not (mainly close)
+*/
+func isComm(v vcn) bool {
+	if len(v.pre) != len(v.post) {
+		return false
+	}
+	for i := 0; i < len(v.pre); i++ {
+		if v.pre[i] != v.post[i] {
+			return true
+		}
+	}
+	return false
 }
