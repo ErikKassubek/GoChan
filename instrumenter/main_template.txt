@@ -65,10 +65,10 @@ func main() {
 			cmd = exec.Command("$$COMMAND$$", "-order=\"" + toString(order) + "\"")
 		}
 
-fmt.Println(cmd)
 		out, err := cmd.Output()
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Printf("Running %s failed!", cmd)
+			continue
 		}
 
 		output := string(out)

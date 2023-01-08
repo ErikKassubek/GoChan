@@ -70,7 +70,7 @@ func RunAnalyzer() {
 		resString = append(resString, rs...)
 	}
 
-	r, rs = checkForImpossibleSelectStatements(vcTrace)
+	r, rs = checkForPossibleSendToClosed(vcTrace)
 	res = res || r
 	resString = append(resString, rs...)
 

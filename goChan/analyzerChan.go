@@ -318,20 +318,20 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 }
 
 /*
-Function to find impossible cases in select statements
+Function to find situation where a send to a closed channel is possible
 @param vcTrace []vcn: list of vector-clock annotated events
-@return bool: true if impossible select statement was found, false otherwise
-@return []string: list of found cases of impossible cases in selects
+@return bool: true if a possible send to close is found, false otherwise
+@return []string: list of possible send to close
 */
-func checkForImpossibleSelectStatements(vcTrace []vcn) (bool, []string) {
+func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 	res := make([]string, 0)
 	r := false
 	// search for pre select
 	for _, trace := range traces {
 		for _, elem := range trace {
 			switch sel := elem.(type) {
-			case *TracePreSelect:
-				// get pre vector clock of preSelect
+			case *TraceClose:
+				// get vector clocks of pre select
 				var preVc []int
 				var postVc []int
 				for _, clock := range vcTrace {
@@ -340,22 +340,13 @@ func checkForImpossibleSelectStatements(vcTrace []vcn) (bool, []string) {
 						postVc = clock.post
 					}
 				}
-				// go through all cases
-				for i, c := range sel.chanIds {
-					// find possible pre vector clocks
-					b := false
-					for _, vc := range vcTrace {
-						if vc.id == c.id && vc.send != c.receive && (!vcUnComparable(preVc, vc.pre) || !vcUnComparable(postVc, vc.post)) {
-							b = true
-							break
-						}
-					}
-					if !b {
-						res = append(res, fmt.Sprintf("Impossible Select Case Detected\n   %s\n   Case %d with Channel %d",
-							sel.position, i+1, c.id))
-						r = true
-					}
 
+				// find possible pre vector clocks
+				for _, vc := range vcTrace {
+					if vc.id == sel.chanId && vc.send && (!vcUnComparable(preVc, vc.pre) || !vcUnComparable(postVc, vc.post)) {
+						r = true
+						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
+					}
 				}
 			}
 		}
