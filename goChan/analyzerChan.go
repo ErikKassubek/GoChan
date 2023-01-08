@@ -372,6 +372,9 @@ func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
 	resString := make([]string, 0)
 	res := false
 	for _, message := range vcTrace {
+		if !isComm(message) {
+			continue
+		}
 		_, ok := numberMessages[message.id]
 		if !ok {
 			numberMessages[message.id] = 0
@@ -387,11 +390,10 @@ func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
 		}
 	}
 	for key, value := range numberMessages {
-		if value == 0 || value == -1 {
-			continue
+		if value > 0 {
+			resString = append(resString, fmt.Sprintf("%d unread message(s) in Channel %d", value, key))
+			res = true
 		}
-		resString = append(resString, fmt.Sprintf("Unread message in Channel %d", key))
-		res = true
 	}
 	return res, resString
 }
