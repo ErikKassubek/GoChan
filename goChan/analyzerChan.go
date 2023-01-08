@@ -84,7 +84,7 @@ Check for dangling events (events with pro but without post)
 @return []uint32: list of chan with dangling events
 */
 func checkForDanglingEvents() (bool, []uint32) {
-	PrintTrace()
+	// PrintTrace()
 	res := false
 	resChan := make([]uint32, 0)
 	for _, trace := range traces {

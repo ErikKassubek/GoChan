@@ -49,9 +49,10 @@ func RunAnalyzer() {
 	res = res || r
 	resString = append(resString, rs...)
 
+	vcTrace := buildVectorClockChan()
+
 	ok, _ := checkForDanglingEvents()
 	res = res || ok
-	vcTrace := buildVectorClockChan()
 
 	r, rs = checkForNonEmptyChan(vcTrace)
 	res = res || r
