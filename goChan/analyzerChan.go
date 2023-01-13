@@ -196,7 +196,7 @@ func buildVectorClockChan() []vcn {
 				for j := i - 1; j >= 0; j-- {
 					if e.senderTimestamp == traceTotal[j].elem.GetTimestamp() {
 						vectorClocks[i+1] = update_reveive(vectorClocks[i], int(elem.routine), int(traceTotal[j].routine),
-							vectorClocks[int(e.senderTimestamp)+1][traceTotal[j].routine])
+							vectorClocks[int(e.senderTimestamp)][traceTotal[j].routine])
 						break
 					}
 

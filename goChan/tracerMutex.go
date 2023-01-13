@@ -79,7 +79,6 @@ Function as helper to perform actual locking of Mutex.
 func (m *Mutex) t_Lock(try bool) bool {
 	index := getIndex()
 
-	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(2)
 
 	res := true
@@ -90,7 +89,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
 		lockId: m.id, try: try, read: false, suc: res})
 	tracesLock.Unlock()
 
@@ -105,13 +104,12 @@ Function to unlock a Mutex.
 func (m *Mutex) Unlock() {
 	index := getIndex()
 
-	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(2)
 
 	m.mu.Unlock()
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
 		lockId: m.id})
 	tracesLock.Unlock()
 }
@@ -181,7 +179,6 @@ Function as helper to perform actual locking of RWMutex.
 func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
-	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(2)
 
 	res := true
@@ -201,7 +198,7 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index],
-		&TraceLock{position: position, timestamp: timestamp, lockId: m.id, try: try, read: read,
+		&TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1), lockId: m.id, try: try, read: read,
 			suc: res})
 	tracesLock.Unlock()
 
@@ -235,7 +232,6 @@ Function as helper to perform actual unlock on RWMutex
 func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()
 
-	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(2)
 
 	if read {
@@ -245,7 +241,7 @@ func (m *RWMutex) t_Unlock(read bool) {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: timestamp,
+	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
 		lockId: m.id})
 	tracesLock.Unlock()
 }
