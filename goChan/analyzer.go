@@ -58,11 +58,11 @@ func RunAnalyzer() {
 	resString = append(resString, rs...)
 
 	if ok && !r {
-		resString = append(resString, "Found dangling Events")
+		resString = append(resString, "\nFound dangling Events")
 	} else if !ok && r {
-		resString = append(resString, "Found non-empty Channel")
+		resString = append(resString, "\nFound non-empty Channel")
 	} else if ok && r {
-		resString = append(resString, "Found dangling Events and non-empty Channel")
+		resString = append(resString, "\nFound dangling Events and non-empty Channel")
 	}
 	// fmt.Println(vcTrace)
 	if ok || r {
@@ -79,6 +79,5 @@ func RunAnalyzer() {
 	// print res Strings
 	for _, prob := range resString {
 		fmt.Println(prob)
-		fmt.Print("\n")
 	}
 }

@@ -91,7 +91,7 @@ func buildGraph() (bool, []string) {
 		// check if a lock was still locked at the end
 		for _, l := range currentHoldLocks {
 			res = false
-			resString = append(resString, fmt.Sprintf("Locked Mutex Not Freed:\n  %s", l.(*TraceLock).position))
+			resString = append(resString, fmt.Sprintf("\nLocked Mutex Not Freed:\n  %s", l.(*TraceLock).position))
 		}
 	}
 
@@ -309,7 +309,7 @@ Function to get the string for a potential cyclic deadlock
 @return string: message
 */
 func getDeadlockMessage(stack *depStack) string {
-	message := "Potential Cyclic Mutex Locking:\n"
+	message := "\nPotential Cyclic Mutex Locking:\n"
 	for cl := stack.stack.next; cl != nil; cl = cl.next {
 		fmt.Println(cl.depEntry.holdingSet[0].(*TraceLock).position)
 		lock := cl.depEntry.mu
