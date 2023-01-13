@@ -37,7 +37,6 @@ that are still running when the main function terminated (and therefore would
 normally also be terminated) to alter the trace.
 */
 func RunAnalyzer() {
-	fmt.Print("Start Programm analysis...\n\n")
 	tracesLock.Lock()
 
 	res := false
@@ -78,13 +77,8 @@ func RunAnalyzer() {
 	tracesLock.Unlock()
 
 	// print res Strings
-	if !res {
-		fmt.Println("No Problems Detected")
-	} else {
-		fmt.Print("Problems Detected\n\n")
-		for _, prob := range resString {
-			fmt.Println(prob)
-			fmt.Print("\n")
-		}
+	for _, prob := range resString {
+		fmt.Println(prob)
+		fmt.Print("\n")
 	}
 }

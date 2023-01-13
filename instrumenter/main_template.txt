@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"os/exec"
 	"reflect"
-	"strings"
 	"time"
 )
 
@@ -14,6 +13,8 @@ var no_failed = 10  // max number of already checked orders
 
 var switch_size = make(map[int]int) // id -> size
 var queue = make([]map[int]int, 0)  // already tested orders
+
+var restults = make([]string, 0)  // collect result messages
 
 /*
 Get a string from a switch order
@@ -67,23 +68,14 @@ func main() {
 
 		out, err := cmd.Output()
 		if err != nil {
-			fmt.Printf("Running %s failed!", cmd)
+			fmt.Printf("Running %s failed!\n", cmd)
 			continue
 		}
 
 		output := string(out)
 
-		output_split := strings.Split(output, "#####TRACE#####")
-
-		// trace := output_split[1]
-		// fmt.Println(trace)
-	if len(output_split) > 2 {
-			output = output_split[0] + output_split[2]
-		} else {
-			output = output_split[0]
-		}
-
 		fmt.Println(output)
+		fmt.Println("...........................")
 	}
 }
 
