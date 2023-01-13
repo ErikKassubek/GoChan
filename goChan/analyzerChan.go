@@ -314,9 +314,9 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 	res_string := make([]string, 0)
 	for send, recs := range collection {
 		res := ""
-		res = fmt.Sprintf("Possible Communication Partners:\n  %s", send)
+		res = fmt.Sprintf("  Possible Communication Partners:\n    %s", send)
 		for _, rec := range recs {
-			res += fmt.Sprintf("\n  -> %s", rec)
+			res += fmt.Sprintf("\n    -> %s", rec)
 		}
 		res_string = append(res_string, res)
 	}
@@ -351,7 +351,7 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 				for _, vc := range vcTrace {
 					if vc.id == sel.chanId && vc.send && (vcUnComparable(preVc, vc.pre) || vcUnComparable(postVc, vc.post)) {
 						r = true
-						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
+						res = append(res, fmt.Sprintf("\nPossible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
 				}
 			}

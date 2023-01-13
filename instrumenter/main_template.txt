@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"reflect"
 	"time"
+	"strings"
 )
 
 var max_runs = 50  // max number of runs 
@@ -14,7 +15,7 @@ var no_failed = 10  // max number of already checked orders
 var switch_size = make(map[int]int) // id -> size
 var queue = make([]map[int]int, 0)  // already tested orders
 
-var restults = make([]string, 0)  // collect result messages
+var messages = make(map[string][]string, 0)  // collect result messages message -> switch orders
 
 /*
 Get a string from a switch order
@@ -42,6 +43,8 @@ func main() {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
+	fmt.Println("Determine switch execution order")
+
 	for no_failed > 0  && max_runs > 0 {
 		order_add := make(map[int]int)
 		for key, size := range switch_size {
@@ -55,27 +58,63 @@ func main() {
 		max_runs -= 1
 	}
 
+	fmt.Println("Start Program Analysis")
+
+	var i float32 = 0
+	max := float32(len(queue))
+
 	for len(queue) != 0 {
+		percent := int(i / max * 100.)
+		fmt.Printf("Analyse Program: %3d%%\n", percent)
+		i++
+
 		order := queue[0]
 		queue = queue[1:]
+
+		orderString := toString(order)
 
 		var cmd *exec.Cmd
 		if len(order) == 0 {
 			cmd = exec.Command("$$COMMAND$$")
 		} else {
-			cmd = exec.Command("$$COMMAND$$", "-order=\"" + toString(order) + "\"")
+			cmd = exec.Command("$$COMMAND$$", "-order=\"" + orderString + "\"")
 		}
 
 		out, err := cmd.Output()
 		if err != nil {
-			fmt.Printf("Running %s failed!\n", cmd)
-			continue
+    	fmt.Println(fmt.Sprint(err))
+    	continue
 		}
 
 		output := string(out)
 
-		fmt.Println(output)
-		fmt.Println("...........................")
+		for _, message := range strings.Split(output, "\n\n") {
+			if _, ok := messages[message]; !ok {
+				messages[message] = make([]string, 0)
+			}
+			messages[message] = append(messages[message], orderString)
+		}
+	}
+
+	fmt.Println("Analyse Program: 100%\n")
+	fmt.Println("Finish Analysis\n")
+
+	l := len(messages)
+	if l == 0 {
+		fmt.Println("No Problems Found")
+	} else {
+		fmt.Println("Found", l, "Problems:\n")
+		for message, orders := range messages {
+			if len(orders) != 0 {
+				fmt.Print("Found problem while examine the following orders: ")
+				for _, order := range orders {
+					fmt.Print("  ", order)
+				}
+				fmt.Print("\n")
+			}
+			fmt.Println(message)
+			fmt.Println("\n")
+		}
 	}
 }
 

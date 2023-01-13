@@ -40,6 +40,8 @@ import (
 
 const WAITING_TIME string = "time.Second"
 
+var selectIdCounter int = 0
+
 /*
 Type for the select_ops list
 @field id int: id of the select statement
@@ -933,7 +935,8 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 // instrument select statements
 func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet *token.FileSet) {
 	// collect cases and replace <-i with i.GetChan()
-	select_id := rand.Intn(899999999) + 100000000 // create random id for select statement (9 digit number)
+	selectIdCounter++
+	select_id := selectIdCounter
 	caseNodes := n.Body.List
 	cases := make([]string, 0)
 	cases_receive := make([]string, 0)
