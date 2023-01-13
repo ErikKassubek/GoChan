@@ -62,6 +62,7 @@ of this channels are replaced by there goChan equivalent.
 @return error: error or nil
 */
 func instrument_chan(f *ast.File, astSet *token.FileSet) error {
+	// ast.Print(astSet, f)
 	// add the import of the goChan library
 	add_goChan_import(f)
 
@@ -94,13 +95,13 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 			instrument_gen_decl(n, c)
 		case *ast.AssignStmt: // handle assign statements
 			switch n.Rhs[0].(type) {
-			case *ast.CallExpr: // call expression
-				instrument_call_expressions(n)
 			case *ast.UnaryExpr: // receive with assign
 				instrument_receive_with_assign(n, c)
 			case *ast.CompositeLit: // creation of struct
 				instrument_assign_struct(n)
 			}
+		case *ast.CallExpr: // call expression
+			instrument_call_expressions(n)
 		case *ast.SendStmt: // handle send messages
 			instrument_send_statement(n, c)
 		case *ast.ExprStmt: // handle receive and close
@@ -223,6 +224,10 @@ Function to add order inforcement structure and command line argument receiver
 @return: nil
 */
 func add_order_in_main(n *ast.FuncDecl) {
+	if n == nil || n.Body == nil {
+		return
+	}
+
 	body := n.Body.List
 
 	if body == nil {
@@ -570,9 +575,7 @@ func instrument_range_stm(n *ast.RangeStmt) {
 }
 
 // instrument if n is a call expression
-func instrument_call_expressions(n *ast.AssignStmt) {
-	// check make functions
-	callExp := n.Rhs[0].(*ast.CallExpr)
+func instrument_call_expressions(callExp *ast.CallExpr) {
 
 	// don't change call expression of non-make function
 	switch callExp.Fun.(type) {
@@ -584,8 +587,6 @@ func instrument_call_expressions(n *ast.AssignStmt) {
 		switch callExp.Args[0].(type) {
 		// make creates a channel
 		case *ast.ChanType:
-			// get type of channel
-
 			callExpVal := callExp.Args[0].(*ast.ChanType).Value
 			chanType := get_name(callExpVal)
 
@@ -610,7 +611,7 @@ func instrument_call_expressions(n *ast.AssignStmt) {
 			}
 
 			// set function argument to channel size
-			callExp.Args[0] = &ast.BasicLit{Kind: token.INT, Value: chanSize}
+			callExp.Args[0] = &ast.BasicLit{Kind: token.INT, Value: "int(" + chanSize + ")"}
 		}
 	}
 }
