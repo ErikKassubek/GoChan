@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os/exec"
+	"os"
 	"reflect"
 	"time"
 	"strings"
@@ -83,6 +84,12 @@ func main() {
 		out, err := cmd.Output()
 		if err != nil {
     	fmt.Println(fmt.Sprint(err))
+			if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
+				fmt.Println("Most likely cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
+					"of the executable created when compiling the original code.")
+				fmt.Println("Abort Analysis")
+				os.Exit(1)
+			}
     	continue
 		}
 
@@ -103,9 +110,9 @@ func main() {
 	if l == 0 {
 		fmt.Println("No Problems Found")
 	} else {
-		fmt.Println("Found", l, "Problems:\n")
+		fmt.Println("Found Problems:\n")
 		for message, orders := range messages {
-			if len(orders) != 0 {
+			if len(orders) != 0 && len(message) != 0 && orders[0] != "" {
 				fmt.Print("Found problem while examine the following orders: ")
 				for _, order := range orders {
 					fmt.Print("  ", order)
@@ -113,7 +120,7 @@ func main() {
 				fmt.Print("\n")
 			}
 			fmt.Println(message)
-			fmt.Println("\n")
+			fmt.Print("\n")
 		}
 	}
 }
