@@ -76,15 +76,17 @@ func Init(maxTime int) {
 		t := time.NewTimer(time.Duration(maxTime) * time.Second)
 		<-t.C
 		RunAnalyzer()
-		fmt.Printf("Programm was terminated by tracer, because the program"+
-			" runtime exceeded the maximal runtime of %d s.\n\n", maxTime)
-		os.Exit(1)
+		fmt.Printf("\nProgramm was terminated by tracer, because the program"+
+			" runtime exceeded the maximal runtime of %d s. This may be caused"+
+			"by a to short maw waiting time (can be changed in the instrumenter)"+
+			"or because the program can not terminate, e.g. because it is in a"+
+			"deadlock. \n\n", maxTime)
+		os.Exit(42)
 	}()
 }
 
 /*
 Function to print the collected trace.
-@return nil
 */
 func PrintTrace() {
 	fmt.Println("#####TRACE#####")
@@ -116,7 +118,6 @@ func PrintTrace() {
 
 /*
 Function to get the index of the routine, from wich the function is called
-@return nil
 */
 func getIndex() uint32 {
 	id := goid.Get()

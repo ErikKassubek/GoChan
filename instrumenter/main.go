@@ -37,6 +37,9 @@ import (
 	"strings"
 )
 
+const MAX_TOTAL_WAITING_TIME_SEC = "20"
+const SELECT_WAITING_TIME string = "2 * time.Second"
+
 var path_separator string = "/"
 
 var in string

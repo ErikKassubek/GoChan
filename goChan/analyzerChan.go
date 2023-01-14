@@ -394,7 +394,7 @@ func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
 	}
 	for key, value := range numberMessages {
 		if value > 0 {
-			resString = append(resString, fmt.Sprintf("%d unread message(s) in Channel %d", value, key))
+			resString = append(resString, fmt.Sprintf("\n%d unread message(s) in Channel %d", value, key))
 			res = true
 		}
 	}

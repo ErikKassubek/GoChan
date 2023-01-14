@@ -36,7 +36,6 @@ Drop in replacements for select
 Function to add before a select statement.
 @param def bool: true if the select has a default statement, false otherwise
 @param channels ...PreObj: list of PreObj to store the cases
-@return nil
 */
 func PreSelect(def bool, channels ...PreObj) {
 	index := getIndex()
@@ -54,7 +53,6 @@ func PreSelect(def bool, channels ...PreObj) {
 Function to add at the beginning of a select case body.
 &param receive bool: true, if the case was started with a receive false if with a send
 @param message Message[T]: message wich was send over the channel
-@return nil
 */
 func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 	index := getIndex()
@@ -77,7 +75,6 @@ func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 
 /*
 Function to add at the beginning of a select default body.
-@return nil
 */
 func PostDefault() {
 	index := getIndex()

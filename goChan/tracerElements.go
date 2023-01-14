@@ -66,7 +66,6 @@ func (ts *TraceSignal) GetTimestamp() uint32 {
 /*
 Function to print the signal trace element
 @receiver *TraceSignal
-@return nil
 */
 func (ts *TraceSignal) PrintElement() {
 	fmt.Printf("signal(%d, %d)", ts.timestamp, ts.routine+1)
@@ -95,7 +94,6 @@ func (ts *TraceWait) GetTimestamp() uint32 {
 /*
 Function to print the wait trace element
 @receiver *TraceWait
-@return nil
 */
 func (tw *TraceWait) PrintElement() {
 	fmt.Printf("wait(%d, %d)", tw.timestamp, tw.routine+1)
@@ -126,7 +124,6 @@ func (tp *TracePre) GetTimestamp() uint32 {
 /*
 Function to print the pre trace element
 @receiver *TracePre
-@return nil
 */
 func (tp *TracePre) PrintElement() {
 	direction := "?"
@@ -167,7 +164,6 @@ func (tp *TracePost) GetTimestamp() uint32 {
 /*
 Function to print the post trace element
 @receiver *TracePost
-@return nil
 */
 func (tp *TracePost) PrintElement() {
 	if tp.send {
@@ -202,7 +198,6 @@ func (tc *TraceClose) GetTimestamp() uint32 {
 /*
 Function to print the close trace element
 @receiver *TraceClose
-@return nil
 */
 func (tc *TraceClose) PrintElement() {
 	fmt.Printf("close(%d, %d)", tc.timestamp, tc.chanId)
@@ -233,7 +228,6 @@ func (tps *TracePreSelect) GetTimestamp() uint32 {
 /*
 Function to print the preSelect trace element
 @receiver *TracePreSelect
-@return nil
 */
 func (tps *TracePreSelect) PrintElement() {
 	fmt.Printf("pre(%d, ", tps.timestamp)
@@ -274,7 +268,6 @@ func (td *TraceDefault) GetTimestamp() uint32 {
 /*
 Function to print the default trace element
 @receiver *TraceDefault
-@return nil
 */
 func (td *TraceDefault) PrintElement() {
 	fmt.Printf("post(%d, default)", td.timestamp)
@@ -311,7 +304,6 @@ func (tl *TraceLock) GetTimestamp() uint32 {
 /*
 Function to print the lock trace element
 @receiver *TraceLock
-@return nil
 */
 func (tl *TraceLock) PrintElement() {
 	p_elem := ""
@@ -356,7 +348,6 @@ func (tu *TraceUnlock) GetTimestamp() uint32 {
 /*
 Function to print the unlock trace element
 @receiver *TraceUnlock
-@return nil
 */
 func (tu *TraceUnlock) PrintElement() {
 	fmt.Printf("unlock(%d, %d)", tu.timestamp, tu.lockId)

@@ -92,7 +92,6 @@ func newDepStack() depStack {
 Function to push a new dependency to the stack
 @param dep (*dependency): dependency to put on the stack
 @param index (int): index of the routine which created the dependency
-@return nil
 */
 func (s *depStack) push(dep *dependency, index int) {
 	// create the new element
@@ -106,7 +105,6 @@ func (s *depStack) push(dep *dependency, index int) {
 
 /*
 Function to remove the top element from stack
-@return nil
 */
 func (s *depStack) pop() {
 	// do nothing if the stack is empty (has only on empty default element)

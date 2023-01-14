@@ -91,7 +91,7 @@ func buildGraph() (bool, []string) {
 		// check if a lock was still locked at the end
 		for _, l := range currentHoldLocks {
 			res = false
-			resString = append(resString, fmt.Sprintf("\nLocked Mutex Not Freed:\n  %s", l.(*TraceLock).position))
+			resString = append(resString, fmt.Sprintf("\nLocked Mutex Not Freed (Can be caused by double locking):\n  %s", l.(*TraceLock).position))
 		}
 	}
 

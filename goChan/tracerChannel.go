@@ -202,7 +202,6 @@ func (ch *Chan[T]) Receive() T {
 
 /*
 Function as drop-in replacement for closing a channel.
-@return nil
 */
 func (ch *Chan[T]) Close() {
 	index := getIndex()

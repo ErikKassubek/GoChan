@@ -45,7 +45,6 @@ type Mutex struct {
 
 /*
 Function to create and initialize a new Mutex
-@return nil
 */
 func NewMutex() Mutex {
 	m := Mutex{mu: &sync.Mutex{}, id: atomic.AddUint32(&numberOfMutex, 1)}
@@ -55,7 +54,6 @@ func NewMutex() Mutex {
 /*
 Function to lock a Mutex.
 @receiver *Mutex
-@return nil
 */
 func (m *Mutex) Lock() {
 	m.t_Lock(false)
@@ -103,7 +101,6 @@ func (m *Mutex) t_Lock(try bool) bool {
 /*
 Function to unlock a Mutex.
 @receiver *Mutex
-@return nil
 */
 func (m *Mutex) Unlock() {
 	index := getIndex()
@@ -140,7 +137,6 @@ func NewRWMutex() RWMutex {
 /*
 Function to lock a RWMutex.
 @receiver *RWMutex
-@return nil
 */
 func (m *RWMutex) Lock() {
 	m.t_RwLock(false, false)
@@ -149,7 +145,6 @@ func (m *RWMutex) Lock() {
 /*
 Function to r-lock a RWMutex.
 @receiver *RWMutex
-@return nil
 */
 func (m *RWMutex) RLock() {
 	m.t_RwLock(false, true)
@@ -216,7 +211,6 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 /*
 Function to unlock a RWMutex.
 @receiver *RWMutex
-@return nil
 */
 func (m *RWMutex) Unlock() {
 	m.t_Unlock(false)
@@ -225,7 +219,6 @@ func (m *RWMutex) Unlock() {
 /*
 Function to r-unlock a RWMutex.
 @receiver *RWMutex
-@return nil
 */
 func (m *RWMutex) RUnlock() {
 	m.t_Unlock(true)
@@ -235,7 +228,6 @@ func (m *RWMutex) RUnlock() {
 Function as helper to perform actual unlock on RWMutex
 @receiver *RWMutex
 @param read bool: true if it is a r-unlock, false otherwise
-@return nil
 */
 func (m *RWMutex) t_Unlock(read bool) {
 	index := getIndex()

@@ -65,14 +65,16 @@ func main() {
 	max := float32(len(queue))
 
 	for len(queue) != 0 {
-		percent := int(i / max * 100.)
-		fmt.Printf("Analyse Program: %3d%%\n", percent)
-		i++
 
 		order := queue[0]
 		queue = queue[1:]
 
 		orderString := toString(order)
+		
+		percent := int(i / max * 100.)
+		fmt.Printf("Analyse Program: %3d%%   %s\n", percent, orderString)
+		i++
+
 
 		var cmd *exec.Cmd
 		if len(order) == 0 {
@@ -83,6 +85,10 @@ func main() {
 
 		out, err := cmd.Output()
 		if err != nil {
+			if fmt.Sprint(err) == "exit status 42" {
+				fmt.Println("Runtime exceeded limit")
+				continue
+			}
     	fmt.Println(fmt.Sprint(err))
 			if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
 				fmt.Println("Most likely cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
@@ -96,6 +102,9 @@ func main() {
 		output := string(out)
 
 		for _, message := range strings.Split(output, "\n\n") {
+			if message == "" {
+				continue
+			}
 			if _, ok := messages[message]; !ok {
 				messages[message] = make([]string, 0)
 			}
