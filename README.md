@@ -17,3 +17,6 @@ The translated files can be found in ./output
 
 The program can now by run by running the main executable in the ./output
 folder. 
+
+Please be aware, that using external library functions which have Mutexe or 
+channels as parameter or return values can lead to errors during the compilation.

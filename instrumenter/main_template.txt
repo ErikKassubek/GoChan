@@ -87,16 +87,16 @@ func main() {
 		if err != nil {
 			if fmt.Sprint(err) == "exit status 42" {
 				fmt.Println("Runtime exceeded limit")
-				continue
+			} else {
+				fmt.Println(fmt.Sprint(err))
+				if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
+					fmt.Println("Most likely cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
+						"of the executable created when compiling the original code.")
+					fmt.Println("Abort Analysis")
+					os.Exit(1)
+				}
+    		continue
 			}
-    	fmt.Println(fmt.Sprint(err))
-			if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
-				fmt.Println("Most likely cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
-					"of the executable created when compiling the original code.")
-				fmt.Println("Abort Analysis")
-				os.Exit(1)
-			}
-    	continue
 		}
 
 		output := string(out)
