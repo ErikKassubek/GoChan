@@ -81,6 +81,10 @@ func (m *Mutex) t_Lock(try bool) bool {
 
 	position := getPosition(2)
 
+	if m.mu == nil {
+		*m = NewMutex()
+	}
+
 	res := true
 	if try {
 		res = m.mu.TryLock()
@@ -180,6 +184,10 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	index := getIndex()
 
 	position := getPosition(2)
+
+	if m.mu == nil {
+		*m = NewRWMutex()
+	}
 
 	res := true
 	if try {
