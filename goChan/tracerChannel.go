@@ -184,6 +184,11 @@ func (ch *Chan[T]) Receive() T {
 
 	res := <-ch.c
 
+	//do not record post receive on closed channel
+	if res.senderTimestamp == 0 {
+		return res.info
+	}
+
 	ch.noRec++
 
 	tracesLock.Lock()

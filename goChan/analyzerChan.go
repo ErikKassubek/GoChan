@@ -313,8 +313,7 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 	}
 	res_string := make([]string, 0)
 	for send, recs := range collection {
-		res := ""
-		res = fmt.Sprintf("  Possible Communication Partners:\n    %s", send)
+		res := fmt.Sprintf("  Possible Communication Partners:\n    %s", send)
 		in := make(map[string]int)
 		for _, rec := range recs {
 			if _, ok := in[rec]; !ok {

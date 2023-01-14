@@ -39,22 +39,22 @@ normally also be terminated) to alter the trace.
 func RunAnalyzer() {
 	tracesLock.Lock()
 
-	res := false
+	// res := false
 	resString := make([]string, 0)
 
 	// analyze the trace for potential deadlocks including only mutexe based
 	// on
-	r, rs := analyzeMutexDeadlock()
-	res = res || r
+	_, rs := analyzeMutexDeadlock()
+	// res = res || r
 	resString = append(resString, rs...)
 
 	vcTrace := buildVectorClockChan()
 
 	ok, _ := checkForDanglingEvents()
-	res = res || ok
+	// res = res || ok
 
-	r, rs = checkForNonEmptyChan(vcTrace)
-	res = res || r
+	r, rs := checkForNonEmptyChan(vcTrace)
+	// res = res || r
 	resString = append(resString, rs...)
 
 	if ok && !r {
@@ -70,8 +70,8 @@ func RunAnalyzer() {
 		resString = append(resString, rs...)
 	}
 
-	r, rs = checkForPossibleSendToClosed(vcTrace)
-	res = res || r
+	_, rs = checkForPossibleSendToClosed(vcTrace)
+	// res = res || r
 	resString = append(resString, rs...)
 
 	tracesLock.Unlock()
