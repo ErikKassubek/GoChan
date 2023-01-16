@@ -80,6 +80,8 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 			} else {
 				instrument_function_declarations(n, c)
 			}
+		case *ast.FuncType:
+			instrument_function_type(n, c)
 		}
 		return true
 	})
@@ -90,7 +92,7 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 
 		switch n := n.(type) {
 		case *ast.GenDecl: // instrument declarations of structs, interfaces, chan.
-			instrument_gen_decl(n, c)
+			instrument_gen_decl(n, c, astSet)
 		case *ast.AssignStmt: // handle assign statements
 			switch n.Rhs[0].(type) {
 			case *ast.UnaryExpr: // receive with assign
@@ -109,9 +111,9 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 		case *ast.GoStmt: // handle the creation of new go routines
 			instrument_go_statements(n, c)
 		case *ast.SelectStmt: // handel select statements
-			instrument_select_statements(n, c, astSet)
+			instrument_select_statements(n, c)
 		case *ast.RangeStmt: // range
-			instrument_range_stm(n, astSet)
+			instrument_range_stm(n)
 		case *ast.ReturnStmt: // return <- c
 			instrument_return(n)
 		}
@@ -302,15 +304,17 @@ Function to instrument the declarations of channels, structs and interfaces.
 @param n *ast.GenDecl: node of the declaration in the ast
 @param c *astutil.Cursor: cursor that traverses the ast
 */
-func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
+func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor, astSet *token.FileSet) {
 	for i, s := range n.Specs {
 		switch s_type := s.(type) {
 		case *ast.ValueSpec:
 			switch t_type := s_type.Type.(type) {
 			case *ast.ChanType:
 				type_val := get_name(t_type.Value)
-				n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
-					Name: "= goChan.NewChan[" + type_val + "](0)",
+				if !strings.Contains(type_val, "time.") {
+					n.Specs[i].(*ast.ValueSpec).Type = &ast.Ident{
+						Name: "= goChan.NewChan[" + type_val + "](0)",
+					}
 				}
 			}
 		case *ast.TypeSpec:
@@ -322,6 +326,14 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
 						type_val := get_name(t_type.Value)
 						n.Specs[i].(*ast.TypeSpec).Type.(*ast.StructType).Fields.List[j].Type = &ast.Ident{
 							Name: "goChan.Chan[" + type_val + "]",
+						}
+					case *ast.ArrayType:
+						switch elt := t_type.Elt.(type) {
+						case *ast.ChanType:
+							type_string := get_name(elt.Value)
+							n.Specs[i].(*ast.TypeSpec).Type.(*ast.StructType).Fields.List[j].Type.(*ast.ArrayType).Elt = &ast.Ident{
+								Name: "goChan.Chan[" + type_string + "]",
+							}
 						}
 					}
 				}
@@ -337,6 +349,16 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor) {
 
 		}
 	}
+}
+
+/*
+Function to instrument function declarations.
+@param n *ast.FuncDecl: node of the func declaration in the ast
+@param c *astutil.Cursor: cursor that traverses the ast
+*/
+func instrument_function_type(n *ast.FuncType, c *astutil.Cursor) {
+	instrument_function_declaration_return_values(n)
+	instrument_function_declaration_parameter(n)
 }
 
 /*
@@ -428,6 +450,13 @@ func instrument_receive_with_assign(n *ast.AssignStmt, c *astutil.Cursor) {
 	}
 
 	variable := get_name(n.Lhs[0])
+	receiveStmt := ".Receive"
+
+	if len(n.Lhs) > 1 {
+		variable += ", " + get_name(n.Lhs[1])
+		receiveStmt = ".ReceiveOk"
+	}
+
 	channel := get_name(n.Rhs[0].(*ast.UnaryExpr).X)
 
 	token := n.Tok
@@ -441,7 +470,7 @@ func instrument_receive_with_assign(n *ast.AssignStmt, c *astutil.Cursor) {
 		Rhs: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.Ident{
-					Name: channel + ".Receive",
+					Name: channel + receiveStmt,
 				},
 			},
 		},
@@ -485,7 +514,7 @@ func instrument_assign_struct(n *ast.AssignStmt) {
 }
 
 // instrument range over channel
-func instrument_range_stm(n *ast.RangeStmt, astSet *token.FileSet) {
+func instrument_range_stm(n *ast.RangeStmt) {
 
 	// switch n.Rhs[0].Body.List
 	switch n.Key.(type) {
@@ -494,7 +523,12 @@ func instrument_range_stm(n *ast.RangeStmt, astSet *token.FileSet) {
 		return
 	}
 
-	varName := get_name(n.Key.(*ast.Ident))
+	get_info_string := "_.GetInfo()"
+
+	varName := get_name(n.Key)
+	if strings.Contains(varName, ",") {
+		get_info_string = "_.GetInfoOk()"
+	}
 
 	if n.Key.(*ast.Ident).Obj == nil {
 		return
@@ -540,12 +574,26 @@ func instrument_range_stm(n *ast.RangeStmt, astSet *token.FileSet) {
 										X: &ast.Ident{Name: chanName + ".Post(false, " + varName + "_)"},
 									},
 									&ast.ExprStmt{
-										X: &ast.Ident{Name: varName + " := " + varName + "_.GetInfo()"},
+										X: &ast.Ident{Name: varName + " := " + varName + get_info_string},
 									},
 								},
 									n.Body.List...)
 							}
 						}
+					}
+				case *ast.Ident:
+					if strings.HasPrefix(f.Name, "goChan.NewChan") {
+						n.Key.(*ast.Ident).Name = varName + "_"
+						n.X = &ast.Ident{Name: chanName + ".GetChan()"}
+						n.Body.List = append([]ast.Stmt{
+							&ast.ExprStmt{
+								X: &ast.Ident{Name: chanName + ".Post(false, " + varName + "_)"},
+							},
+							&ast.ExprStmt{
+								X: &ast.Ident{Name: varName + " := " + varName + get_info_string},
+							},
+						},
+							n.Body.List...)
 					}
 				}
 
@@ -751,6 +799,9 @@ func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 	if x_part.Op != token.ARROW {
 		return
 	}
+	if is_time_element(x_part) {
+		return
+	}
 
 	// get channel name
 	var channel string
@@ -780,6 +831,44 @@ func instrument_receive_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 			},
 		})
 	}
+}
+
+func is_time_element(n *ast.UnaryExpr) bool {
+	switch x_part_x := n.X.(type) {
+	case *ast.Ident:
+		switch decl := x_part_x.Obj.Decl.(type) {
+		case *ast.ValueSpec:
+			switch v := decl.Type.(type) {
+			case *ast.ChanType:
+				switch x := v.Value.(type) {
+				case *ast.SelectorExpr:
+					if get_name(x.X) == "time" {
+						return true
+					}
+				}
+			}
+		}
+	case *ast.SelectorExpr:
+		switch x := x_part_x.X.(type) {
+		case *ast.Ident:
+			switch decl := x.Obj.Decl.(type) {
+			case *ast.AssignStmt:
+				switch r := decl.Rhs[0].(type) {
+				case *ast.CallExpr:
+					switch f := r.Fun.(type) {
+					case *ast.SelectorExpr:
+						switch i := f.X.(type) {
+						case *ast.Ident:
+							if i.Name == "time" {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // change close statements to goChan.Close
@@ -826,7 +915,31 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 		func_body = &ast.BlockStmt{
 			List: t.Body.List,
 		}
-	case *ast.Ident, *ast.SelectorExpr, *ast.CallExpr:
+	case *ast.Ident:
+		if t.Name == "close" && len(n.Call.Args) == 1 {
+			func_body = &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.ExprStmt{
+						X: &ast.CallExpr{
+							Fun:  &ast.Ident{Name: get_name(n.Call.Args[0]) + ".Close"},
+							Args: []ast.Expr{&ast.Ident{Name: ""}},
+						},
+					},
+				},
+			}
+		} else {
+			func_body = &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.ExprStmt{
+						X: &ast.CallExpr{
+							Fun:  n.Call.Fun,
+							Args: n.Call.Args,
+						},
+					},
+				},
+			}
+		}
+	case *ast.SelectorExpr, *ast.CallExpr:
 		func_body = &ast.BlockStmt{
 			List: []ast.Stmt{
 				&ast.ExprStmt{
@@ -922,7 +1035,7 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 }
 
 // instrument select statements
-func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet *token.FileSet) {
+func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 	// collect cases and replace <-i with i.GetChan()
 	selectIdCounter++
 	select_id := selectIdCounter
@@ -1006,6 +1119,13 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet
 		case *ast.AssignStmt: // receive with assign
 			assign_name = "sel_" + randStr(10)
 			assigned_name := get_name(c_type.Lhs[0])
+
+			get_info_string := "GetInfo()"
+
+			if strings.Contains(assigned_name, ",") {
+				get_info_string = "GetInfoOk()"
+			}
+
 			cases_receive = append(cases_receive, "true")
 			rec = "true"
 
@@ -1041,7 +1161,7 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor, astSet
 								Name: assign_name,
 							},
 							Sel: &ast.Ident{
-								Name: "GetInfo()",
+								Name: get_info_string,
 							},
 						},
 					},
@@ -1208,30 +1328,6 @@ func instrument_return(n *ast.ReturnStmt) {
 		}
 	}
 }
-
-/*
-instrument binary expression between channel and nil
-@param n *ast.BinaryExpr: binary expression
-*/
-// func instrument_binary_expression(n *ast.BinaryExpr, astSet *token.FileSet) {
-// 	left := get_name(n.X)
-// 	right := get_name(n.Y)
-// 	if left != "nil" && right != "nil" {
-// 		return
-// 	}
-
-// 	// hacky way to get ast subtree as string to search for goChan.Channel
-// 	writer := new(bytes.Buffer)
-// 	ast.Fprint(writer, astSet, n.X, nil)
-// 	s := fmt.Sprint(writer)
-// 	if strings.Contains(s, "goChan.Chan[") {
-// 		if left == "nil" {
-// 			n.Y = &ast.Ident{Name: "nil"}
-// 		} else {
-// 			n.X = &ast.Ident{Name: "nil"}
-// 		}
-// 	}
-// }
 
 /*
 Get the name of an element
