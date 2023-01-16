@@ -76,11 +76,11 @@ func Init(maxTime int) {
 		t := time.NewTimer(time.Duration(maxTime) * time.Second)
 		<-t.C
 		RunAnalyzer()
-		fmt.Printf("\nProgramm was terminated by tracer, because the program "+
+		fmt.Printf("##@@##\nProgramm was terminated by tracer, because the program "+
 			"runtime exceeded the maximal runtime of %d s. This may be caused "+
 			"by a to short maw waiting time (can be changed in the instrumenter) "+
 			"or because the program can not terminate, e.g. because it is in a "+
-			"deadlock. \n\n", maxTime)
+			"deadlock.##@@##", maxTime)
 		os.Exit(42)
 	}()
 }

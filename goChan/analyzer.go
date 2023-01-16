@@ -71,7 +71,7 @@ func RunAnalyzer() {
 	if ok || r {
 		rs = findAlternativeCommunication(vcTrace)
 		if len(rs) == 0 {
-			resString = append(resString, "\nNo possible communication found")
+			resString = append(resString, "\nNo possible communication partners found!")
 		}
 		resString = append(resString, rs...)
 	}
