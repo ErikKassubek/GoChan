@@ -42,6 +42,7 @@ type Message[T any] struct {
 	info            T
 	sender          uint32
 	senderTimestamp uint32
+	open            bool
 }
 
 /*
@@ -52,7 +53,7 @@ This function is mainly used, when sending a message in a select statement
 */
 func BuildMessage[T any](info T) Message[T] {
 	index := getIndex()
-	return Message[T]{info: info, sender: index, senderTimestamp: atomic.LoadUint32(&counter)}
+	return Message[T]{info: info, sender: index, senderTimestamp: atomic.LoadUint32(&counter), open: true}
 }
 
 /*
@@ -62,6 +63,16 @@ Function to get the info field from a message.
 */
 func (m *Message[T]) GetInfo() T {
 	return m.info
+}
+
+/*
+Function to get the info field from a message which was received by a, ok := <- c.
+@receiver *Message[T]
+@return T: info field of the message
+@return bool: true, if channel was open, false otherwise
+*/
+func (m *Message[T]) GetInfoOk() (T, bool) {
+	return m.info, m.open
 }
 
 /*
@@ -157,6 +168,7 @@ func (ch *Chan[T]) Send(val T) {
 		info:            val,
 		sender:          index,
 		senderTimestamp: timestamp,
+		open:            true,
 	}
 
 	ch.noSend++
