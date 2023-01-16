@@ -30,7 +30,7 @@ analyzer.go
 Main functions to start the analyzer
 */
 
-running := false
+var running bool = false
 
 /*
 Main function to run the analyzer. The running of the analyzer locks
