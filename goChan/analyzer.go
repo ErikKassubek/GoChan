@@ -60,12 +60,13 @@ func RunAnalyzer() {
 	// res = res || r
 	resString = append(resString, rs...)
 
-	if ok
+	if ok {
 		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channel-Ids: %s", danglingEventChans))
+	}
 	if r {
 		resString = append(resString, "\nFound non-empty Channel for Channel-Ids")
 	}
-	
+
 	// fmt.Println(vcTrace)
 	if ok || r {
 		rs = findAlternativeCommunication(vcTrace)
