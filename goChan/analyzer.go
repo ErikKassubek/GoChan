@@ -46,23 +46,32 @@ func RunAnalyzer() {
 
 	vcTrace := buildVectorClockChan()
 
-	ok, _ := checkForDanglingEvents()
+	ok, ids := checkForDanglingEvents()
 	// res = res || ok
+	danglingEventChans := ""
+	for i, id := range ids {
+		danglingEventChans += fmt.Sprint(id)
+		if i != len(ids)-1 {
+			danglingEventChans += ", "
+		}
+	}
 
 	r, rs := checkForNonEmptyChan(vcTrace)
 	// res = res || r
 	resString = append(resString, rs...)
 
-	if ok && !r {
-		resString = append(resString, "\nFound dangling Events")
-	} else if !ok && r {
-		resString = append(resString, "\nFound non-empty Channel")
-	} else if ok && r {
-		resString = append(resString, "\nFound dangling Events and non-empty Channel")
+	if ok
+		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channel-Ids: %s", danglingEventChans))
+	if r {
+		resString = append(resString, "\nFound non-empty Channel for Channel-Ids")
 	}
+	
 	// fmt.Println(vcTrace)
 	if ok || r {
 		rs = findAlternativeCommunication(vcTrace)
+		if len(rs) == 0 {
+			resString = append(resString, "No possible communication found")
+		}
 		resString = append(resString, rs...)
 	}
 
