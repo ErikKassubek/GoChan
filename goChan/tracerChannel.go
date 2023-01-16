@@ -78,6 +78,7 @@ type Chan[T any] struct {
 	capacity int
 	noSend   int
 	noRec    int
+	open     bool
 }
 
 /*
@@ -89,7 +90,7 @@ replacement for a chan T.
 func NewChan[T any](size int) Chan[T] {
 	id := atomic.AddUint32(&numberOfChan, 1)
 	ch := Chan[T]{c: make(chan Message[T], size),
-		id: id, capacity: size, noSend: 0, noRec: 0}
+		id: id, capacity: size, noSend: 0, noRec: 0, open: true}
 
 	chanSizeLock.Lock()
 	chanSize[id] = size
@@ -201,6 +202,16 @@ func (ch *Chan[T]) Receive() T {
 }
 
 /*
+Function as drop-in replacement for a, ok := <-ch.c.
+@receiver: *Chan[T]
+@return T: received value
+*/
+func (ch *Chan[T]) ReceiveOk() (T, bool) {
+	res := ch.Receive()
+	return res, ch.open
+}
+
+/*
 Function as drop-in replacement for closing a channel.
 */
 func (ch *Chan[T]) Close() {
@@ -209,6 +220,8 @@ func (ch *Chan[T]) Close() {
 	position := getPosition(1)
 
 	close(ch.c)
+
+	ch.open = false
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceClose{position: position, timestamp: timestamp,
