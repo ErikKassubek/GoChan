@@ -104,13 +104,15 @@ Struct for a pre in the trace.
 @field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
+@field chanCreation string: pos of the creation of the chan
 @field send bool: true if it is a preSend, false otherwise
 */
 type TracePre struct {
-	position  string
-	timestamp uint32
-	chanId    uint32
-	send      bool
+	position     string
+	timestamp    uint32
+	chanId       uint32
+	chanCreation string
+	send         bool
 }
 
 /*
@@ -138,6 +140,7 @@ Struct for a post in the trace.
 @field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
+@field chanCreation string: pos of the creation of the chan
 @field send bool: true if it is a preSend, false otherwise
 @field senderId: id of the sender of the message
 @field senderTimestamp: timestamp of the sender at send
@@ -147,6 +150,7 @@ type TracePost struct {
 	position        string
 	timestamp       uint32
 	chanId          uint32
+	chanCreation    string
 	send            bool
 	senderId        uint32
 	senderTimestamp uint32
@@ -180,11 +184,13 @@ Struct for a close in the trace.
 @field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field chanId uint32: id of the Chan
+@field chanCreation string: pos of the creation of the chan
 */
 type TraceClose struct {
-	position  string
-	timestamp uint32
-	chanId    uint32
+	position     string
+	timestamp    uint32
+	chanId       uint32
+	chanCreation string
 }
 
 /*
@@ -280,17 +286,19 @@ Struct for a lock in the trace.
 @field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field lockId uint32: id of the Mutex
+@field mutexCreation string: position of the creation of the mutex
 @field try bool: true if it is a try-lock, false otherwise
 @field read bool: true if it is a r-lock, false otherwise
 @field suc bool: true if the operation was successful, false otherwise (only try)
 */
 type TraceLock struct {
-	position  string
-	timestamp uint32
-	lockId    uint32
-	try       bool
-	read      bool
-	suc       bool
+	position      string
+	timestamp     uint32
+	lockId        uint32
+	mutexCreation string
+	try           bool
+	read          bool
+	suc           bool
 }
 
 /*
@@ -330,11 +338,13 @@ Struct for a unlock in the trace.
 @field postion string: string describing the position of the creation in code
 @field timestamp uint32: timestamp of the creation of the trace object
 @field lockId uint32: id of the Mutex
+@field mutexCreation string: position of the creation of the mutex
 */
 type TraceUnlock struct {
-	position  string
-	timestamp uint32
-	lockId    uint32
+	position      string
+	timestamp     uint32
+	lockId        uint32
+	mutexCreation string
 }
 
 /*

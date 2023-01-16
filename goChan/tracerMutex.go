@@ -39,15 +39,16 @@ Struct to implement a mutex. Is used as drop-in replacement for sync.Mutex
 @field id uint32: id of the mutex
 */
 type Mutex struct {
-	mu *sync.Mutex
-	id uint32
+	mu       *sync.Mutex
+	creation string
+	id       uint32
 }
 
 /*
 Function to create and initialize a new Mutex
 */
 func NewMutex() Mutex {
-	m := Mutex{mu: &sync.Mutex{}, id: atomic.AddUint32(&numberOfMutex, 1)}
+	m := Mutex{mu: &sync.Mutex{}, creation: getPosition(1), id: atomic.AddUint32(&numberOfMutex, 1)}
 	return m
 }
 
@@ -92,7 +93,7 @@ func (m *Mutex) t_Lock(try bool) bool {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-		lockId: m.id, try: try, read: false, suc: res})
+		lockId: m.id, mutexCreation: m.creation, try: try, read: false, suc: res})
 	tracesLock.Unlock()
 
 	return res
@@ -111,7 +112,7 @@ func (m *Mutex) Unlock() {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-		lockId: m.id})
+		lockId: m.id, mutexCreation: m.creation})
 	tracesLock.Unlock()
 }
 
@@ -121,8 +122,9 @@ Struct to implement a rw-mutex. Is used as drop-in replacement for sync.RWMutex
 @field id uint32: id of the mutex
 */
 type RWMutex struct {
-	mu *sync.RWMutex
-	id uint32
+	mu       *sync.RWMutex
+	creation string
+	id       uint32
 }
 
 /*
@@ -130,7 +132,7 @@ Function to create and initialize a new RWMutex
 @return RWMutex: new RWMutex object
 */
 func NewRWMutex() RWMutex {
-	m := RWMutex{mu: &sync.RWMutex{}, id: atomic.AddUint32(&numberOfMutex, 1)}
+	m := RWMutex{mu: &sync.RWMutex{}, creation: getPosition(1), id: atomic.AddUint32(&numberOfMutex, 1)}
 	return m
 }
 
@@ -201,7 +203,8 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index],
-		&TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1), lockId: m.id, try: try, read: read,
+		&TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
+			lockId: m.id, mutexCreation: m.creation, try: try, read: read,
 			suc: res})
 	tracesLock.Unlock()
 
@@ -242,6 +245,6 @@ func (m *RWMutex) t_Unlock(read bool) {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-		lockId: m.id})
+		lockId: m.id, mutexCreation: m.creation})
 	tracesLock.Unlock()
 }

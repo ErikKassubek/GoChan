@@ -45,6 +45,7 @@ Struct to save the pre and post vector clocks of a channel operation
 */
 type vcn struct {
 	id       uint32
+	creation string
 	routine  int
 	position string
 	send     bool
@@ -81,12 +82,12 @@ func (s ttes) Less(i, j int) bool {
 /*
 Check for dangling events (events with pro but without post)
 @return bool, true if dangling events exist, false otherwise
-@return []uint32: list of chan with dangling events
+@return []uint32: list of creation positions of chans with dangling events
 */
-func checkForDanglingEvents() (bool, []uint32) {
+func checkForDanglingEvents() (bool, []string) {
 	// PrintTrace()
 	res := false
-	resChan := make([]uint32, 0)
+	resChan := make([]string, 0)
 	for _, trace := range traces {
 		for i, elem := range trace {
 			switch pre := elem.(type) {
@@ -105,7 +106,7 @@ func checkForDanglingEvents() (bool, []uint32) {
 				}
 				if !b {
 					res = true
-					resChan = append(resChan, pre.chanId)
+					resChan = append(resChan, pre.chanCreation)
 				}
 			case *TracePreSelect: // pre of select:
 				if pre.def {
@@ -133,7 +134,7 @@ func checkForDanglingEvents() (bool, []uint32) {
 				if !b1 { // dangling event
 					res = true
 					for _, channel := range pre.chanIds {
-						resChan = append(resChan, channel.id)
+						resChan = append(resChan, channel.chanCreation)
 					}
 				}
 			}
@@ -220,7 +221,7 @@ func buildVectorClockChan() []vcn {
 					switch post := trace[k].(type) {
 					case *TracePost:
 						if post.chanId == pre.chanId {
-							vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
+							vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
 								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
 								noComs: post.noComs})
 							b = true
@@ -235,7 +236,7 @@ func buildVectorClockChan() []vcn {
 					for i := 0; i < len(traces); i++ {
 						post_default_clock[i] = math.MaxInt
 					}
-					vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, send: pre.send,
+					vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
 						pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
 
 				}
@@ -247,7 +248,7 @@ func buildVectorClockChan() []vcn {
 						switch post := trace[k].(type) {
 						case *TracePost:
 							if post.chanId == channel.id {
-								vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
+								vcTrace = append(vcTrace, vcn{id: channel.id, creation: post.chanCreation, routine: i, position: pre.position, send: !channel.receive,
 									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
 									noComs: post.noComs})
 								b1 = true
@@ -268,12 +269,12 @@ func buildVectorClockChan() []vcn {
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
 						}
-						vcTrace = append(vcTrace, vcn{id: channel.id, routine: i, position: pre.position, send: !channel.receive,
+						vcTrace = append(vcTrace, vcn{id: channel.id, creation: channel.chanCreation, routine: i, position: pre.position, send: !channel.receive,
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
 					}
 				}
 			case *TraceClose:
-				vcTrace = append(vcTrace, vcn{id: pre.chanId, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
+				vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
 					post: vectorClocks[int(pre.GetTimestamp())][i], noComs: -1})
 			}
 		}
@@ -371,30 +372,30 @@ never read
 @return []string: messages
 */
 func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
-	numberMessages := make(map[uint32]int)
+	numberMessages := make(map[string]int)
 	resString := make([]string, 0)
 	res := false
 	for _, message := range vcTrace {
 		if !isComm(message) {
 			continue
 		}
-		_, ok := numberMessages[message.id]
+		_, ok := numberMessages[message.creation]
 		if !ok {
-			numberMessages[message.id] = 0
+			numberMessages[message.creation] = 0
 		}
 		if message.send {
 			if message.post[0] < math.MaxInt {
-				numberMessages[message.id]++
+				numberMessages[message.creation]++
 			}
 		} else {
 			if message.post[0] < math.MaxInt {
-				numberMessages[message.id]--
+				numberMessages[message.creation]--
 			}
 		}
 	}
-	for key, value := range numberMessages {
+	for position, value := range numberMessages {
 		if value > 0 {
-			resString = append(resString, fmt.Sprintf("\n%d unread message(s) in Channel %d", value, key))
+			resString = append(resString, fmt.Sprintf("\n%d unread message(s) in Channel created at %s", value, position))
 			res = true
 		}
 	}

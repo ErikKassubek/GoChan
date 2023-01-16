@@ -52,26 +52,25 @@ func RunAnalyzer() {
 
 	vcTrace := buildVectorClockChan()
 
-	ok, ids := checkForDanglingEvents()
+	ok, creations := checkForDanglingEvents()
 	// res = res || ok
 	danglingEventChans := ""
-	for i, id := range ids {
+	for i, id := range creations {
 		danglingEventChans += fmt.Sprint(id)
-		if i != len(ids)-1 {
+		if i != len(creations)-1 {
 			danglingEventChans += ", "
 		}
 	}
 
 	r, rs := checkForNonEmptyChan(vcTrace)
-	// res = res || r
 	resString = append(resString, rs...)
 
 	if ok {
-		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channel-Ids: %s", danglingEventChans))
+		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channels created at: %s", danglingEventChans))
 	}
-	if r {
-		resString = append(resString, "\nFound non-empty Channel for Channel-Ids")
-	}
+	// if r {
+	// 	resString = append(resString, "\nFound non-empty Channel for Channels created at ")
+	// }
 
 	// fmt.Println(vcTrace)
 	if ok || r {

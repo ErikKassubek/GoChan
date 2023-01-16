@@ -62,12 +62,13 @@ func (ch *Chan[T]) Post(receive bool, message Message[T]) {
 	if receive {
 		tracesLock.Lock()
 		traces[index] = append(traces[index], &TracePost{position: position, timestamp: timestamp,
-			chanId: ch.id, send: false,
+			chanId: ch.id, chanCreation: ch.creation, send: false,
 			senderId: message.sender, senderTimestamp: message.senderTimestamp})
 		tracesLock.Unlock()
 	} else {
 		tracesLock.Lock()
-		traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, send: true,
+		traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id,
+			chanCreation: ch.creation, send: true,
 			senderId: index, timestamp: timestamp})
 		tracesLock.Unlock()
 	}

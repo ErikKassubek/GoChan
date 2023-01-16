@@ -86,6 +86,7 @@ Struct to implement a drop in replacement for a channel
 type Chan[T any] struct {
 	c        chan Message[T]
 	id       uint32
+	creation string
 	capacity int
 	noSend   int
 	noRec    int
@@ -101,7 +102,7 @@ replacement for a chan T.
 func NewChan[T any](size int) Chan[T] {
 	id := atomic.AddUint32(&numberOfChan, 1)
 	ch := Chan[T]{c: make(chan Message[T], size),
-		id: id, capacity: size, noSend: 0, noRec: 0, open: true}
+		id: id, creation: getPosition(1), capacity: size, noSend: 0, noRec: 0, open: true}
 
 	chanSizeLock.Lock()
 	chanSize[id] = size
@@ -131,11 +132,13 @@ func (ch *Chan[T]) GetId() uint32 {
 /*
 Struct to save a Chan with id. Used to store channel cases in select.
 @field id uint32: id of the Chan
+@field chanCreation string: pos of the creation of the chan
 @field receive bool: true, if the select case is a channel receive, false if it is a send
 */
 type PreObj struct {
-	id      uint32
-	receive bool
+	id           uint32
+	chanCreation string
+	receive      bool
 }
 
 /*
@@ -144,7 +147,7 @@ Function to create a PreObj object from a Chan used with select.
 @return PreObj: the created preObj object
 */
 func (ch *Chan[T]) GetIdPre(receive bool) PreObj {
-	return PreObj{id: ch.id, receive: receive}
+	return PreObj{id: ch.id, chanCreation: ch.creation, receive: receive}
 }
 
 /*
@@ -161,7 +164,7 @@ func (ch *Chan[T]) Send(val T) {
 	// add pre event to tracer
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePre{position: position, timestamp: timestamp,
-		chanId: ch.id, send: true})
+		chanId: ch.id, chanCreation: ch.creation, send: true})
 	tracesLock.Unlock()
 
 	ch.c <- Message[T]{
@@ -174,7 +177,7 @@ func (ch *Chan[T]) Send(val T) {
 	ch.noSend++
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, send: true,
+	traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, chanCreation: ch.creation, send: true,
 		senderId: index, timestamp: atomic.AddUint32(&counter, 1), noComs: ch.noSend})
 	tracesLock.Unlock()
 }
@@ -192,7 +195,7 @@ func (ch *Chan[T]) Receive() T {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePre{position: position,
-		timestamp: timestamp, chanId: ch.id, send: false})
+		timestamp: timestamp, chanId: ch.id, chanCreation: ch.creation, send: false})
 	tracesLock.Unlock()
 
 	res := <-ch.c
@@ -206,7 +209,8 @@ func (ch *Chan[T]) Receive() T {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{position: position,
-		timestamp: atomic.AddUint32(&counter, 1), chanId: ch.id, send: false,
+		timestamp: atomic.AddUint32(&counter, 1), chanId: ch.id,
+		chanCreation: ch.creation, send: false,
 		senderId: res.sender, senderTimestamp: res.senderTimestamp, noComs: ch.noRec})
 	tracesLock.Unlock()
 
@@ -237,6 +241,6 @@ func (ch *Chan[T]) Close() {
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TraceClose{position: position, timestamp: timestamp,
-		chanId: ch.id})
+		chanId: ch.id, chanCreation: ch.creation})
 	tracesLock.Unlock()
 }
