@@ -30,6 +30,8 @@ analyzer.go
 Main functions to start the analyzer
 */
 
+running := false
+
 /*
 Main function to run the analyzer. The running of the analyzer locks
 tracesLock for the total duration of its runtime, to prevent go-routines,
@@ -37,6 +39,10 @@ that are still running when the main function terminated (and therefore would
 normally also be terminated) to alter the trace.
 */
 func RunAnalyzer() {
+	if running {
+		return
+	}
+	running = true
 	tracesLock.Lock()
 
 	// analyze the trace for potential deadlocks including only mutexe based
