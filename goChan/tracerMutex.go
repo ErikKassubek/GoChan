@@ -212,6 +212,7 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 
 	tracesLock.Lock()
 	traces[index][elemIndex].(*TraceLock).suc = true
+	tracesLock.Unlock()
 
 	return res
 }
