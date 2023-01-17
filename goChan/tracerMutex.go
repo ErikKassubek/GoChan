@@ -186,6 +186,15 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 		*m = NewRWMutex()
 	}
 
+	elemIndex := len(traces[index])
+
+	tracesLock.Lock()
+	traces[index] = append(traces[index],
+		&TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
+			lockId: m.id, mutexCreation: m.creation, try: try, read: read,
+			suc: false})
+	tracesLock.Unlock()
+
 	res := true
 	if try {
 		if read {
@@ -202,11 +211,7 @@ func (m *RWMutex) t_RwLock(try bool, read bool) bool {
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index],
-		&TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-			lockId: m.id, mutexCreation: m.creation, try: try, read: read,
-			suc: res})
-	tracesLock.Unlock()
+	traces[index][elemIndex].(*TraceLock).suc = true
 
 	return res
 }
