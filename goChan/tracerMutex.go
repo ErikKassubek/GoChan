@@ -84,16 +84,23 @@ func (m *Mutex) t_Lock(try bool) bool {
 		*m = NewMutex()
 	}
 
+	elemIndex := len(traces[index])
+
+	tracesLock.Lock()
+	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
+		lockId: m.id, mutexCreation: m.creation, try: try, read: false, suc: false})
+	tracesLock.Unlock()
+
 	res := true
 	if try {
 		res = m.mu.TryLock()
+
 	} else {
 		m.mu.Lock()
 	}
 
 	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceLock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-		lockId: m.id, mutexCreation: m.creation, try: try, read: false, suc: res})
+	traces[index][elemIndex].(*TraceLock).suc = true
 	tracesLock.Unlock()
 
 	return res
