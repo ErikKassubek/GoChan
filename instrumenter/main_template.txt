@@ -104,15 +104,14 @@ func main() {
 
 		output := string(out)
 
-		for _, message := range strings.Split(output, "\n") {
-		  if len(message) < 12 || !strings.Contains(message, "##@@##") {
-			 	continue
+		for _, message := range strings.Split(output, "##@@##") {
+			if len(message) == 0 {
+				continue
 			}
-			message_strip := message[:len(message)-6]
-			if _, ok := messages[message_strip]; !ok {
-				messages[message_strip] = make([]string, 0)
+			if _, ok := messages[message]; !ok {
+				messages[message] = make([]string, 0)
 			}
-			messages[message_strip] = append(messages[message_strip], orderString)
+			messages[message] = append(messages[message], orderString)
 		}
 	}
 
