@@ -5,7 +5,7 @@ import (
 )
 
 /*
-Copyright (c) 2022, Erik Kassubek
+Copyright (c) 2023, Erik Kassubek
 All rights reserved.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"

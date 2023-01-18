@@ -3,7 +3,7 @@ package goChan
 import "fmt"
 
 /*
-Copyright (c) 2022, Erik Kassubek
+Copyright (c) 2023, Erik Kassubek
 All rights reserved.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -76,7 +76,7 @@ func RunAnalyzer() {
 	if ok || r {
 		rs = findAlternativeCommunication(vcTrace)
 		if len(rs) == 0 {
-			resString = append(resString, "\nNo possible communication partners found!")
+			resString = append(resString, "\nNo possible communication found!")
 		}
 		resString = append(resString, rs...)
 	}

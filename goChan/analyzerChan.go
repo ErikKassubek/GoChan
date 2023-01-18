@@ -7,7 +7,7 @@ import (
 )
 
 /*
-Copyright (c) 2022, Erik Kassubek
+Copyright (c) 2023, Erik Kassubek
 All rights reserved.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -306,8 +306,12 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 			if !elem1.send { // swap elems sucht that 1 is send and 2 is receive
 				elem1, elem2 = elem2, elem1
 			}
+			// add empty list of send if nessessary
+			if len(collection[elem1.position]) == 0 {
+				collection[elem1.position] = make([]string, 0)
+			}
 			if (getChanSize(elem1.id) == 0) && (vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post)) ||
-				(getChanSize(elem1.id) != 0 && elem1.noComs == elem2.noComs) {
+				(getChanSize(elem1.id) != 0 && distance(elem1.noComs, elem2.noComs) < chanSize[elem1.id]) {
 				collection[elem1.position] = append(collection[elem1.position], elem2.position)
 			}
 		}
@@ -316,6 +320,9 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 	for send, recs := range collection {
 		res := fmt.Sprintf("  Possible Communication Partners:\n    %s", send)
 		in := make(map[string]int)
+		if len(recs) == 0 {
+			res += "\n    -> No possible communication found"
+		}
 		for _, rec := range recs {
 			if _, ok := in[rec]; !ok {
 				res += fmt.Sprintf("\n    -> %s", rec)
@@ -547,4 +554,18 @@ func isComm(v vcn) bool {
 		}
 	}
 	return false
+}
+
+/*
+Calculate the absolute difference between x and y
+@param x uint32
+@param y uint32
+@return int: |x-y|
+*/
+func distance(x int, y int) int {
+	if x > y {
+		return x - y
+	} else {
+		return y - x
+	}
 }
