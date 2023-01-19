@@ -104,7 +104,7 @@ func main() {
 		output := string(out)
 
 		for _, message := range strings.Split(output, "##@@##") {
-			if len(message) == 0 {
+			if len(strings.TrimSpace(message)) == 0 {
 				continue
 			}
 			if strings.Contains(message, "panic: send on closed channel") {
@@ -115,7 +115,9 @@ func main() {
 				messages[message] = make([]string, 0)
 			}
 
-			messages[message] = append(messages[message], orderString)
+			if !isInList(messages[message], orderString) {
+				messages[message] = append(messages[message], orderString)
+			}
 		}
 	}
 
@@ -132,12 +134,12 @@ func main() {
 	} else {
 		fmt.Println("Found Problems:\n")
 		for message, orders := range messages {
-			if len(orders) != 0 && len(message) != 0 && orders[0] != "" {
+			if len(orders) != 0 && len(message) != 0 && strings.TrimSpace(orders[0]) != "" {
 				fmt.Print("Found problem while examine the following orders: ")
 				for _, order := range orders {
 					fmt.Print("  ", order)
 				}
-				fmt.Print("\n")
+				//fmt.Print("\n")
 			}
 			fmt.Println(message)
 			fmt.Print("\n")
@@ -157,4 +159,17 @@ func wasNotInQueue(order map[int]int) bool {
 		}
 	}
 	return true
+}
+
+/*
+Check if elem is in list
+@return bool: true if elem is in list, false otherwise
+*/
+func isInList(list []string, elem string) bool {
+	for _, e := range list {
+		if e == elem {
+			return true
+		}
+	}
+	return false
 }
