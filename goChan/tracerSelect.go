@@ -54,7 +54,7 @@ Function to add at the beginning of a select case body.
 &param receive bool: true, if the case was started with a receive false if with a send
 @param message Message[T]: message wich was send over the channel
 */
-func (ch *Chan[T]) Post(receive bool, message Message[T]) {
+func (ch Chan[T]) Post(receive bool, message Message[T]) {
 	index := getIndex()
 	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(1)

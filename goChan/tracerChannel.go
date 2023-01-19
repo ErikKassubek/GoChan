@@ -116,7 +116,7 @@ Getter for the chan field of a Chan object.
 @receiver *Chan[T]
 @return chan Message[T]: chan field of channel
 */
-func (ch *Chan[T]) GetChan() chan Message[T] {
+func (ch Chan[T]) GetChan() chan Message[T] {
 	return ch.c
 }
 
@@ -146,7 +146,7 @@ Function to create a PreObj object from a Chan used with select.
 @param receive bool: true, if the select case is a channel receive, false if it is a send
 @return PreObj: the created preObj object
 */
-func (ch *Chan[T]) GetIdPre(receive bool) PreObj {
+func (ch Chan[T]) GetIdPre(receive bool) PreObj {
 	return PreObj{id: ch.id, chanCreation: ch.creation, receive: receive}
 }
 
