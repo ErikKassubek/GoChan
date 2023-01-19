@@ -85,20 +85,19 @@ func main() {
 			cmd = exec.Command("$$COMMAND$$", "-order=\"" + orderString + "\"")
 		}
 
-		out, err := cmd.Output()
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			if fmt.Sprint(err) == "exit status 42" {
 				fmt.Println("Runtime exceeded limit")
 			} else {
 				failed = true
-				fmt.Println(fmt.Sprint(err))
+				fmt.Println(fmt.Sprint(err.Error()))
 				if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
-					fmt.Println("Most likely cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
+					fmt.Println("Probable cause:\nThe EXEC value was not set correctly during the instrumentation.\nIt should be the name " +
 						"of the executable created when compiling the original code.")
 					fmt.Println("Abort Analysis")
 					os.Exit(1)
 				}
-				continue
 			}
 		}
 
@@ -108,9 +107,14 @@ func main() {
 			if len(message) == 0 {
 				continue
 			}
+			if strings.Contains(message, "panic: send on closed channel") {
+				m_split := strings.Split(message, "\n")
+				message = "Send on closed channel:\n    " + m_split[len(m_split)-2]
+			}
 			if _, ok := messages[message]; !ok {
 				messages[message] = make([]string, 0)
 			}
+
 			messages[message] = append(messages[message], orderString)
 		}
 	}
