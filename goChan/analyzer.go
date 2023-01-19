@@ -55,14 +55,11 @@ func RunAnalyzer() {
 	ok, creations := checkForDanglingEvents()
 	// res = res || ok
 	danglingEventChans := ""
-	for i, id := range creations {
-		danglingEventChans += fmt.Sprint(id)
-		if i != len(creations)-1 {
-			danglingEventChans += "\n    "
-		}
+	for _, id := range creations {
+		danglingEventChans += "\n    " + fmt.Sprint(id)
 	}
 	if ok {
-		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channels created at: %s", danglingEventChans))
+		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channels created at:  %s", danglingEventChans))
 	}
 
 	r, rs := checkForNonEmptyChan(vcTrace)
