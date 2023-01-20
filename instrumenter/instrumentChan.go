@@ -90,8 +90,6 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 			} else {
 				instrument_function_declarations(n, c, astSet)
 			}
-		case *ast.FuncType:
-			instrument_function_type(n, c)
 		}
 		return true
 	})
@@ -119,7 +117,7 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 		case *ast.DeferStmt: // handle defer
 			instrument_defer_statement(n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
-			instrument_go_statements(n, c)
+			instrument_go_statements(n, c, astSet)
 		case *ast.SelectStmt: // handel select statements
 			instrument_select_statements(n, c)
 		case *ast.RangeStmt: // range
@@ -352,7 +350,7 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor, astSet *token.FileSe
 					switch t_type := t.Type.(type) {
 					case *ast.FuncType:
 
-						_ = instrument_function_declaration_return_values(t_type)
+						_ = instrument_function_declaration_return_values(t_type, astSet)
 						instrument_function_declaration_parameter(t_type)
 					}
 				}
@@ -367,44 +365,47 @@ Function to instrument function declarations.
 @param n *ast.FuncDecl: node of the func declaration in the ast
 @param c *astutil.Cursor: cursor that traverses the ast
 */
-func instrument_function_type(n *ast.FuncType, c *astutil.Cursor) {
-	_ = instrument_function_declaration_return_values(n)
-	instrument_function_declaration_parameter(n)
-}
-
-/*
-Function to instrument function declarations.
-@param n *ast.FuncDecl: node of the func declaration in the ast
-@param c *astutil.Cursor: cursor that traverses the ast
-*/
 func instrument_function_declarations(n *ast.FuncDecl, c *astutil.Cursor, astSet *token.FileSet) {
-	_ = instrument_function_declaration_return_values(n.Type)
+	val := instrument_function_declaration_return_values(n.Type, astSet)
 	instrument_function_declaration_parameter(n.Type)
+
+	// change nil
+	if len(val) != 0 {
+		astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
+			node := c.Node()
+			switch ret := node.(type) {
+			case *ast.ReturnStmt:
+				for _, elem := range val {
+					switch r := ret.Results[elem.index].(type) {
+					case *ast.Ident:
+						if r.Name == "nil" {
+							node.(*ast.ReturnStmt).Results[elem.index].(*ast.Ident).Name = elem.name + "{}"
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
 }
 
 /*
 Function to change the return value of functions if they contain a chan.
 @param n *ast.FuncType: node of the func type in the ast
 */
-func instrument_function_declaration_return_values(n *ast.FuncType) []chanRetNil {
+func instrument_function_declaration_return_values(n *ast.FuncType, astSet *token.FileSet) []chanRetNil {
 	astResult := n.Results
 
 	// do nothing if the functions does not have return values
 	if astResult == nil {
 		return []chanRetNil{}
 	}
-
 	r := make([]chanRetNil, 0)
 
 	// traverse all return types
 	for i, res := range n.Results.List {
-		switch t := res.Type.(type) {
+		switch res.Type.(type) {
 		case *ast.ChanType: // do not call continue if channel
-		case *ast.Ident:
-			if strings.HasPrefix(t.Name, "goChan.Chan") {
-				r = append(r, chanRetNil{i, t.Name})
-			}
-			continue
 		default:
 			continue // continue if not a channel
 		}
@@ -412,6 +413,7 @@ func instrument_function_declaration_return_values(n *ast.FuncType) []chanRetNil
 		translated_string := ""
 		name := get_name(res.Type.(*ast.ChanType).Value)
 		translated_string = "goChan.Chan[" + name + "]"
+		r = append(r, chanRetNil{i, translated_string})
 
 		// set the translated value
 		n.Results.List[i] = &ast.Field{
@@ -925,7 +927,7 @@ func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 }
 
 // instrument the creation of new go routines
-func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
+func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor, astSet *token.FileSet) {
 	var_name := "GoChanRoutineIndex"
 
 	var func_body *ast.BlockStmt
@@ -984,7 +986,7 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 	fc := n.Call.Fun
 	switch fc_type := fc.(type) {
 	case *ast.FuncLit: // go with lambda
-		_ = instrument_function_declaration_return_values(fc_type.Type)
+		_ = instrument_function_declaration_return_values(fc_type.Type, astSet)
 		instrument_function_declaration_parameter(fc_type.Type)
 	default:
 		n.Call.Args = nil

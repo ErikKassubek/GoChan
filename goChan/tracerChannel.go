@@ -125,7 +125,7 @@ Getter fir the id field of a Chan object
 @receiver *Chan[T]
 @return uint32: id of the Chan
 */
-func (ch *Chan[T]) GetId() uint32 {
+func (ch Chan[T]) GetId() uint32 {
 	return ch.id
 }
 
@@ -155,7 +155,7 @@ Function as drop-in replacements for ch.c <- T.
 @receiver: *Chan[T]
 @param: val T: message to send over the channel
 */
-func (ch *Chan[T]) Send(val T) {
+func (ch Chan[T]) Send(val T) {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
@@ -187,7 +187,7 @@ Function as drop-in replacement for <-ch.c.
 @receiver: *Chan[T]
 @return T: received value
 */
-func (ch *Chan[T]) Receive() T {
+func (ch Chan[T]) Receive() T {
 	index := getIndex()
 
 	timestamp := atomic.AddUint32(&counter, 1)
@@ -222,7 +222,7 @@ Function as drop-in replacement for a, ok := <-ch.c.
 @receiver: *Chan[T]
 @return T: received value
 */
-func (ch *Chan[T]) ReceiveOk() (T, bool) {
+func (ch Chan[T]) ReceiveOk() (T, bool) {
 	res := ch.Receive()
 	return res, ch.open
 }
@@ -230,7 +230,7 @@ func (ch *Chan[T]) ReceiveOk() (T, bool) {
 /*
 Function as drop-in replacement for closing a channel.
 */
-func (ch *Chan[T]) Close() {
+func (ch Chan[T]) Close() {
 	index := getIndex()
 	timestamp := atomic.AddUint32(&counter, 1)
 	position := getPosition(1)
