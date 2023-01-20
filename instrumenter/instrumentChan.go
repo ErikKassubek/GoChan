@@ -29,6 +29,7 @@ Instrument channels to work with the "github.com/ErikKassubek/GoChan/goChan" lib
 */
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -70,7 +71,6 @@ of this channels are replaced by there goChan equivalent.
 @return error: error or nil
 */
 func instrument_chan(f *ast.File, astSet *token.FileSet) error {
-	// ast.Print(astSet, f)
 	// add the import of the goChan library
 	add_goChan_import(f)
 
@@ -88,8 +88,10 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 				add_init_call(n)
 				main_func = n
 			} else {
-				instrument_function_declarations(n, c, astSet)
+				instrument_function_declarations(n, c)
 			}
+		case *ast.FuncType:
+			instrument_function_type(n, c)
 		}
 		return true
 	})
@@ -107,6 +109,8 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 				instrument_receive_with_assign(n, c)
 			case *ast.CompositeLit: // creation of struct
 				instrument_assign_struct(n)
+			case *ast.Ident: // nil
+				instrument_nil_assign(n, astSet)
 			}
 		case *ast.CallExpr: // call expression
 			instrument_call_expressions(n)
@@ -117,13 +121,15 @@ func instrument_chan(f *ast.File, astSet *token.FileSet) error {
 		case *ast.DeferStmt: // handle defer
 			instrument_defer_statement(n, c)
 		case *ast.GoStmt: // handle the creation of new go routines
-			instrument_go_statements(n, c, astSet)
+			instrument_go_statements(n, c)
 		case *ast.SelectStmt: // handel select statements
 			instrument_select_statements(n, c)
 		case *ast.RangeStmt: // range
 			instrument_range_stm(n)
 		case *ast.ReturnStmt: // return <- c
-			instrument_return(n, astSet)
+			instrument_return(n)
+		case *ast.IfStmt: // if a == nil {
+			instrument_if(n, astSet)
 		}
 
 		return true
@@ -350,7 +356,7 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor, astSet *token.FileSe
 					switch t_type := t.Type.(type) {
 					case *ast.FuncType:
 
-						_ = instrument_function_declaration_return_values(t_type, astSet)
+						_ = instrument_function_declaration_return_values(t_type)
 						instrument_function_declaration_parameter(t_type)
 					}
 				}
@@ -361,12 +367,22 @@ func instrument_gen_decl(n *ast.GenDecl, c *astutil.Cursor, astSet *token.FileSe
 }
 
 /*
+Function to instrument function types outside of function declarations.
+@param n *ast.FuncDecl: node of the func declaration in the ast
+@param c *astutil.Cursor: cursor that traverses the ast
+*/
+func instrument_function_type(n *ast.FuncType, c *astutil.Cursor) {
+	_ = instrument_function_declaration_return_values(n)
+	instrument_function_declaration_parameter(n)
+}
+
+/*
 Function to instrument function declarations.
 @param n *ast.FuncDecl: node of the func declaration in the ast
 @param c *astutil.Cursor: cursor that traverses the ast
 */
-func instrument_function_declarations(n *ast.FuncDecl, c *astutil.Cursor, astSet *token.FileSet) {
-	val := instrument_function_declaration_return_values(n.Type, astSet)
+func instrument_function_declarations(n *ast.FuncDecl, c *astutil.Cursor) {
+	val := instrument_function_declaration_return_values(n.Type)
 	instrument_function_declaration_parameter(n.Type)
 
 	// change nil
@@ -393,7 +409,7 @@ func instrument_function_declarations(n *ast.FuncDecl, c *astutil.Cursor, astSet
 Function to change the return value of functions if they contain a chan.
 @param n *ast.FuncType: node of the func type in the ast
 */
-func instrument_function_declaration_return_values(n *ast.FuncType, astSet *token.FileSet) []chanRetNil {
+func instrument_function_declaration_return_values(n *ast.FuncType) []chanRetNil {
 	astResult := n.Results
 
 	// do nothing if the functions does not have return values
@@ -465,6 +481,11 @@ func instrument_function_declaration_parameter(n *ast.FuncType) {
 	}
 }
 
+/*
+Insturment receive with assign
+@param n *ast.AssignStmt: assign statment
+@param c *astutil.Cursor: ast cursor
+*/
 func instrument_receive_with_assign(n *ast.AssignStmt, c *astutil.Cursor) {
 	if n.Rhs[0].(*ast.UnaryExpr).Op != token.ARROW {
 		return
@@ -623,6 +644,32 @@ func instrument_range_stm(n *ast.RangeStmt) {
 	}
 
 	// ast.Print(astSet, n.X.(*ast.Ident).Obj.Decl.(*ast.AssignStmt).Rhs[0].(*ast.CallExpr).Fun.(*ast.IndexExpr).X.(*ast.SelectorExpr).X.(*ast.Ident).Name)
+}
+
+func instrument_nil_assign(n *ast.AssignStmt, astSet *token.FileSet) {
+	switch n.Rhs[0].(type) {
+	case *ast.Ident:
+	default:
+		return
+	}
+	if n.Rhs[0].(*ast.Ident).Name != "nil" {
+		return
+	}
+	buf := new(bytes.Buffer)
+	ast.Fprint(buf, astSet, n, nil)
+	name := ""
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if strings.Contains(line, "goChan.Chan") {
+			name_split := strings.Split(line, "\"")
+			if len(name_split) > 1 {
+				name = name_split[1]
+				break
+			}
+		}
+	}
+	if name != "" {
+		n.Rhs[0].(*ast.Ident).Name = name + "{}"
+	}
 
 }
 
@@ -927,7 +974,7 @@ func instrument_close_statement(n *ast.ExprStmt, c *astutil.Cursor) {
 }
 
 // instrument the creation of new go routines
-func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor, astSet *token.FileSet) {
+func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor) {
 	var_name := "GoChanRoutineIndex"
 
 	var func_body *ast.BlockStmt
@@ -986,7 +1033,7 @@ func instrument_go_statements(n *ast.GoStmt, c *astutil.Cursor, astSet *token.Fi
 	fc := n.Call.Fun
 	switch fc_type := fc.(type) {
 	case *ast.FuncLit: // go with lambda
-		_ = instrument_function_declaration_return_values(fc_type.Type, astSet)
+		_ = instrument_function_declaration_return_values(fc_type.Type)
 		instrument_function_declaration_parameter(fc_type.Type)
 	default:
 		n.Call.Args = nil
@@ -1331,7 +1378,7 @@ func instrument_select_statements(n *ast.SelectStmt, cur *astutil.Cursor) {
 Instrument return statemens consisting of an channel receive
 @param n *ast.ReturnStmt: return statement
 */
-func instrument_return(n *ast.ReturnStmt, astSet *token.FileSet) {
+func instrument_return(n *ast.ReturnStmt) {
 	if n.Results == nil {
 		return
 	}
@@ -1348,6 +1395,47 @@ func instrument_return(n *ast.ReturnStmt, astSet *token.FileSet) {
 			}
 		}
 	}
+}
+
+/*
+Instrument if statement containing nil
+@param n *ast.IfStmt: ast if statement
+*/
+func instrument_if(n *ast.IfStmt, astSet *token.FileSet) {
+	switch n.Cond.(type) {
+	case *ast.BinaryExpr:
+	default:
+		return
+	}
+
+	switch n.Cond.(*ast.BinaryExpr).Y.(type) {
+	case *ast.Ident:
+	default:
+		return
+	}
+
+	if n.Cond.(*ast.BinaryExpr).Y.(*ast.Ident).Name != "nil" {
+		return
+	}
+
+	ast.Print(astSet, n)
+
+	buf := new(bytes.Buffer)
+	ast.Fprint(buf, astSet, n.Cond.(*ast.BinaryExpr).X, nil)
+	name := ""
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if strings.Contains(line, "goChan.Chan") {
+			name_split := strings.Split(line, "\"")
+			if len(name_split) > 1 {
+				name = name_split[1]
+				break
+			}
+		}
+	}
+	if name != "" {
+		n.Cond.(*ast.BinaryExpr).Y.(*ast.Ident).Name = "(" + name + "{})"
+	}
+
 }
 
 /*
