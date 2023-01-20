@@ -59,7 +59,7 @@ func RunAnalyzer() {
 		danglingEventChans += "\n    " + fmt.Sprint(id)
 	}
 	if ok {
-		resString = append(resString, fmt.Sprintf("\nFound dangling Events for Channels created at:  %s", danglingEventChans))
+		resString = append(resString, fmt.Sprintf("Found dangling Events for Channels created at:  %s", danglingEventChans))
 	}
 
 	r, rs := checkForNonEmptyChan(vcTrace)

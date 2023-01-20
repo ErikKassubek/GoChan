@@ -364,7 +364,7 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 				for _, vc := range vcTrace {
 					if vc.id == sel.chanId && vc.send && (vcUnComparable(preVc, vc.pre) || vcUnComparable(postVc, vc.post)) {
 						r = true
-						res = append(res, fmt.Sprintf("\nPossible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
+						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
 				}
 			}
@@ -404,7 +404,7 @@ func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
 	}
 	for position, value := range numberMessages {
 		if value > 0 {
-			resString = append(resString, fmt.Sprintf("\n%d unread message(s) in Channel created at %s", value, position))
+			resString = append(resString, fmt.Sprintf("%d unread message(s) in Channel created at %s", value, position))
 			res = true
 		}
 	}

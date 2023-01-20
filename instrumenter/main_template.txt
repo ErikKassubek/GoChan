@@ -103,13 +103,21 @@ func main() {
 
 		output := string(out)
 
-		for _, message := range strings.Split(output, "##@@##") {
+		start := false
+		if !strings.HasPrefix(output, "##@@##") {
+			start = true
+		}
+
+		for i, message := range strings.Split(output, "##@@##") {
 			if len(strings.TrimSpace(message)) == 0 {
 				continue
 			}
 			if strings.Contains(message, "panic: send on closed channel") {
 				m_split := strings.Split(message, "\n")
 				message = "Send on closed channel:\n    " + m_split[len(m_split)-2]
+			}
+			if start && i == 0 {
+				continue
 			}
 			if _, ok := messages[message]; !ok {
 				messages[message] = make([]string, 0)
