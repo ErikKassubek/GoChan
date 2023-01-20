@@ -310,8 +310,10 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 			if len(collection[elem1.position]) == 0 {
 				collection[elem1.position] = make([]string, 0)
 			}
-			if (getChanSize(elem1.id) == 0) && (vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post)) ||
-				(getChanSize(elem1.id) != 0 && distance(elem1.noComs, elem2.noComs) < chanSize[elem1.id]) {
+			if (vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post) ||
+				vcUnComparable(elem1.pre, elem2.post) || vcUnComparable(elem1.post, elem2.pre)) ||
+				(getChanSize(elem1.id) != 0 &&
+					distance(elem1.noComs, elem2.noComs) < chanSize[elem1.id]) {
 				collection[elem1.position] = append(collection[elem1.position], elem2.position)
 			}
 		}
