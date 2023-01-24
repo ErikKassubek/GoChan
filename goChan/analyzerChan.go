@@ -161,7 +161,9 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 				for k := j + 1; k < len(trace); k++ {
 					switch post := trace[k].(type) {
 					case *TracePost:
-						if post.chanId == pre.chanId {
+						if post.chanId == pre.chanId &&
+							len(vectorClocks[int(pre.GetTimestamp())]) > i &&
+							len(vectorClocks[int(pre.GetTimestamp())]) > i {
 							vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
 								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
 								noComs: post.noComs})
@@ -179,8 +181,11 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 					for i := 0; i < len(traces); i++ {
 						post_default_clock[i] = math.MaxInt
 					}
-					vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
-						pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
+					fmt.Println(vectorClocks[int(pre.GetTimestamp())])
+					if len(vectorClocks[int(pre.GetTimestamp())]) > i {
+						vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
+							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
+					}
 
 				}
 			case *TracePreSelect: // pre of select:
