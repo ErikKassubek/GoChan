@@ -1413,8 +1413,6 @@ func instrument_if(n *ast.IfStmt, astSet *token.FileSet) {
 		return
 	}
 
-	ast.Print(astSet, n)
-
 	buf := new(bytes.Buffer)
 	ast.Fprint(buf, astSet, n.Cond.(*ast.BinaryExpr).X, nil)
 	name := ""
