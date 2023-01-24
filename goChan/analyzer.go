@@ -50,9 +50,8 @@ func RunAnalyzer() {
 	_, resString := analyzeMutexDeadlock()
 	// res = res || r
 
-	vcTrace := buildVectorClockChan()
+	vcTrace, ok, creations := buildVectorClockChan()
 
-	ok, creations := checkForDanglingEvents()
 	// res = res || ok
 	danglingEventChans := ""
 	for _, id := range creations {

@@ -80,74 +80,12 @@ func (s ttes) Less(i, j int) bool {
 }
 
 /*
-Check for dangling events (events with pro but without post)
-@return bool, true if dangling events exist, false otherwise
-@return []uint32: list of creation positions of chans with dangling events
-*/
-func checkForDanglingEvents() (bool, []string) {
-	// PrintTrace()
-	res := false
-	resChan := make([]string, 0)
-	for _, trace := range traces {
-		for i, elem := range trace {
-			switch pre := elem.(type) {
-			case *TracePre:
-				b := false
-				for j := i + 1; j < len(trace) && j <= i+1; j++ {
-					switch post := trace[j].(type) {
-					case *TracePost:
-						if pre.chanId == post.chanId && pre.send == post.send {
-							b = true
-						}
-					}
-					if b {
-						break
-					}
-				}
-				if !b {
-					res = true
-					resChan = append(resChan, pre.chanCreation)
-				}
-			case *TracePreSelect: // pre of select:
-				if pre.def {
-					continue // no dangeling events if default
-				}
-				b1 := false
-				for _, channel := range pre.chanIds {
-					b2 := false
-					for k := i + 1; k < len(trace); k++ {
-						switch post := trace[k].(type) {
-						case *TracePost:
-							if post.chanId == channel.id {
-								b1 = true
-								b2 = true
-							}
-						}
-						if b2 {
-							break
-						}
-					}
-					if b1 {
-						break
-					}
-				}
-				if !b1 { // dangling event
-					res = true
-					for _, channel := range pre.chanIds {
-						resChan = append(resChan, channel.chanCreation)
-					}
-				}
-			}
-		}
-	}
-	return res, resChan
-}
-
-/*
-Function to build a vector clock for a trace
+Function to build a vector clock for a trace and search for dangling events
 @return []vcn: List of send and receive with pre and post vector clock annotation
+@return bool, true if dangling events exist, false otherwise
+@return []string: list of creation positions of chans with dangling events
 */
-func buildVectorClockChan() []vcn {
+func buildVectorClockChan() ([]vcn, bool, []string) {
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 
@@ -212,6 +150,9 @@ func buildVectorClockChan() []vcn {
 	// build vector clock anotated traces
 	vcTrace := make([]vcn, 0)
 
+	ok := false
+	danglingEvents := make([]string, 0)
+
 	for i, trace := range traces {
 		for j, elem := range trace {
 			switch pre := elem.(type) {
@@ -232,6 +173,8 @@ func buildVectorClockChan() []vcn {
 					}
 				}
 				if !b { // dangling event (pre without post)
+					ok = true
+					danglingEvents = append(danglingEvents, pre.chanCreation)
 					post_default_clock := make([]int, len(traces))
 					for i := 0; i < len(traces); i++ {
 						post_default_clock[i] = math.MaxInt
@@ -265,6 +208,8 @@ func buildVectorClockChan() []vcn {
 				}
 				if !b1 { // dangling event
 					for _, channel := range pre.chanIds {
+						ok = true
+						danglingEvents = append(danglingEvents, pre.position)
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
@@ -280,7 +225,7 @@ func buildVectorClockChan() []vcn {
 		}
 	}
 
-	return vcTrace
+	return vcTrace, ok, danglingEvents
 }
 
 /*
