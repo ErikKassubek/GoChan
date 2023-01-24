@@ -67,7 +67,6 @@ func main() {
 	failed := false
 
 	for len(queue) != 0 {
-
 		order := queue[0]
 		queue = queue[1:]
 
@@ -82,7 +81,7 @@ func main() {
 		if len(order) == 0 {
 			cmd = exec.Command("$$COMMAND$$")
 		} else {
-			cmd = exec.Command("$$COMMAND$$", "-order=\"" + orderString + "\"")
+			cmd = exec.Command("$$COMMAND$$", orderString)
 		}
 
 		out, err := cmd.CombinedOutput()
@@ -137,9 +136,9 @@ func main() {
 	}
 
 	l := len(messages)
-	if l == 0 {
+	if l == 0 && !failed {
 		fmt.Println("No Problems Found")
-	} else {
+	} else if l > 0 {
 		fmt.Println("Found Problems:\n")
 		for message, orders := range messages {
 			if len(orders) != 0 && len(message) != 0 && strings.TrimSpace(orders[0]) != "" {

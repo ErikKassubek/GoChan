@@ -255,12 +255,7 @@ func add_order_in_main(n *ast.FuncDecl) {
 		},
 		&ast.ExprStmt{
 			X: &ast.Ident{
-				Name: "flag.StringVar(&order, \"order\", \"\", \"order\")",
-			},
-		},
-		&ast.ExprStmt{
-			X: &ast.Ident{
-				Name: "flag.Parse()",
+				Name: "if len(os.Args) > 0 { order = os.Args[1] }",
 			},
 		},
 		&ast.ExprStmt{
