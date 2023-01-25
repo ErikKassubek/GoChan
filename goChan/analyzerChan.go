@@ -41,7 +41,8 @@ Struct to save the pre and post vector clocks of a channel operation
 @field send bool: true if it is a send event, false otherwise
 @field pre []uint32: pre vector clock
 @field post []uint32: post vector clock
-@field noComs: if send number of completed sends on the channel, otherwise number of completed receives
+@field first int: number of Send strongly before send or difference between number receive strongly before receive and receive independent of receive
+@field second int: sum of number send strongly before send and send independent of send or sum of number receive strongly before receive and receive independent of receive
 */
 type vcn struct {
 	id       uint32
@@ -51,7 +52,8 @@ type vcn struct {
 	send     bool
 	pre      []int
 	post     []int
-	noComs   int
+	first    int
+	second   int
 }
 
 /*
@@ -77,6 +79,14 @@ func (s ttes) Swap(i, j int) {
 }
 func (s ttes) Less(i, j int) bool {
 	return s[i].elem.GetTimestamp() < s[j].elem.GetTimestamp()
+}
+
+/*
+Struct to save calculation values for buffered channels
+*/
+type calcVal struct {
+	first  int
+	second int
 }
 
 /*
@@ -165,8 +175,7 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 							len(vectorClocks[int(pre.GetTimestamp())]) > i &&
 							len(vectorClocks[int(pre.GetTimestamp())]) > i {
 							vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
-								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
-								noComs: post.noComs})
+								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
 							b = true
 						}
 					}
@@ -181,10 +190,9 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 					for i := 0; i < len(traces); i++ {
 						post_default_clock[i] = math.MaxInt
 					}
-					fmt.Println(vectorClocks[int(pre.GetTimestamp())])
 					if len(vectorClocks[int(pre.GetTimestamp())]) > i {
 						vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
-							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
+							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
 					}
 
 				}
@@ -197,8 +205,7 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 						case *TracePost:
 							if post.chanId == channel.id {
 								vcTrace = append(vcTrace, vcn{id: channel.id, creation: post.chanCreation, routine: i, position: pre.position, send: !channel.receive,
-									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
-									noComs: post.noComs})
+									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
 								b1 = true
 								b2 = true
 							}
@@ -220,13 +227,53 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 							post_default_clock[i] = math.MaxInt
 						}
 						vcTrace = append(vcTrace, vcn{id: channel.id, creation: channel.chanCreation, routine: i, position: pre.position, send: !channel.receive,
-							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock, noComs: -1})
+							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
 					}
 				}
 			case *TraceClose:
 				vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
-					post: vectorClocks[int(pre.GetTimestamp())][i], noComs: -1})
+					post: vectorClocks[int(pre.GetTimestamp())][i]})
 			}
+		}
+	}
+
+	// calculate first and second values
+	for i := 0; i < len(vcTrace); i++ {
+		if getChanSize(vcTrace[i].id) == 0 {
+			continue
+		}
+		sp := 0 // no of send before send in i
+		su := 0 // no of send independent of send in i
+		rp := 0 // no of receive before send in i
+		ru := 0 // no of receive independent of receive in i
+		for j := 0; j < len(vcTrace); j++ {
+			if i == j {
+				continue
+			}
+			if vcTrace[i].id != vcTrace[j].id {
+				continue
+			}
+			indep := vcUnComparable(vcTrace[i].pre, vcTrace[j].pre)
+			if vcTrace[j].send {
+				if indep {
+					su += 1
+				} else if vcTrace[i].routine == vcTrace[j].routine && j < i {
+					sp += 1
+				}
+			} else {
+				if indep {
+					ru += 1
+				} else if vcTrace[i].routine == vcTrace[j].routine && j < i {
+					rp += 1
+				}
+			}
+		}
+		if vcTrace[i].send {
+			vcTrace[i].first = sp
+			vcTrace[i].second = sp + su
+		} else {
+			vcTrace[i].first = rp - ru
+			vcTrace[i].second = rp + ru
 		}
 	}
 
@@ -239,6 +286,7 @@ Find alternative communications based on vector clock annotated events
 @return []string: list of found communications
 */
 func findAlternativeCommunication(vcTrace []vcn) []string {
+
 	collection := make(map[string][]string)
 	for i := 0; i < len(vcTrace)-1; i++ {
 		for j := i + 1; j < len(vcTrace); j++ {
@@ -260,10 +308,12 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 			if len(collection[elem1.position]) == 0 {
 				collection[elem1.position] = make([]string, 0)
 			}
-			if (vcUnComparable(elem1.pre, elem2.pre) || vcUnComparable(elem1.post, elem2.post) ||
-				vcUnComparable(elem1.pre, elem2.post) || vcUnComparable(elem1.post, elem2.pre)) ||
-				(getChanSize(elem1.id) != 0 &&
-					distance(elem1.noComs, elem2.noComs) < chanSize[elem1.id]) {
+			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
+			uncomp2 := vcUnComparable(elem1.pre, elem2.post)
+			uncomp3 := vcUnComparable(elem1.post, elem2.pre)
+			uncomp4 := vcUnComparable(elem1.post, elem2.post)
+			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp2 || uncomp3 || uncomp4)) ||
+				(getChanSize(elem1.id) != 0 && inPossibleCommunicationBuffered(elem1, elem2)) {
 				collection[elem1.position] = append(collection[elem1.position], elem2.position)
 			}
 		}
@@ -284,6 +334,29 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 		res_string = append(res_string, res)
 	}
 	return res_string
+}
+
+/*
+Funktion to check if communication between buffered channels is possible
+@param send vcn: vector clock annotated trace element of send
+@param receive vcn: vector clock annotated trace element of receive
+@return bool: true, if communication is possible, false otherwise
+*/
+func inPossibleCommunicationBuffered(send vcn, receive vcn) bool {
+	fmt.Println(send.creation)
+	fmt.Println(receive.creation)
+
+	fmt.Println(send.first, send.second, receive.first, receive.second)
+	if send.first > receive.first {
+		return false
+	}
+	if send.second < receive.second {
+		return false
+	}
+	fmt.Println("3")
+
+	fmt.Print("\n\n\n")
+	return true
 }
 
 /*
@@ -312,7 +385,9 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 
 				// find possible pre vector clocks
 				for _, vc := range vcTrace {
-					if vc.id == sel.chanId && vc.send && (vcUnComparable(preVc, vc.pre) || vcUnComparable(postVc, vc.post)) {
+					uncompPre := vcUnComparable(preVc, vc.pre)
+					uncompPost := vcUnComparable(postVc, vc.post)
+					if vc.id == sel.chanId && vc.send && (uncompPre || uncompPost) {
 						r = true
 						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
