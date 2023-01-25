@@ -343,19 +343,12 @@ Funktion to check if communication between buffered channels is possible
 @return bool: true, if communication is possible, false otherwise
 */
 func inPossibleCommunicationBuffered(send vcn, receive vcn) bool {
-	fmt.Println(send.creation)
-	fmt.Println(receive.creation)
-
-	fmt.Println(send.first, send.second, receive.first, receive.second)
 	if send.first > receive.first {
 		return false
 	}
 	if send.second < receive.second {
 		return false
 	}
-	fmt.Println("3")
-
-	fmt.Print("\n\n\n")
 	return true
 }
 
