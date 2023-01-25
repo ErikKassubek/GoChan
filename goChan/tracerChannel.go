@@ -80,16 +80,12 @@ Struct to implement a drop in replacement for a channel
 @field c chan Message[T]: channel to send a message
 @field id uint32: id for the channel
 @field capacity: max size of the channel
-@field noSend: number of completed sends on the channel
-@field noRec: number of completed receives on the channel
 */
 type Chan[T any] struct {
 	c        chan Message[T]
 	id       uint32
 	creation string
 	capacity int
-	noSend   int
-	noRec    int
 	open     bool
 }
 
@@ -102,7 +98,7 @@ replacement for a chan T.
 func NewChan[T any](size int) Chan[T] {
 	id := atomic.AddUint32(&numberOfChan, 1)
 	ch := Chan[T]{c: make(chan Message[T], size),
-		id: id, creation: getPosition(1), capacity: size, noSend: 0, noRec: 0, open: true}
+		id: id, creation: getPosition(1), capacity: size, open: true}
 
 	chanSizeLock.Lock()
 	chanSize[id] = size
@@ -174,11 +170,10 @@ func (ch Chan[T]) Send(val T) {
 		open:            true,
 	}
 
-	ch.noSend++
 
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, chanCreation: ch.creation, send: true,
-		senderId: index, timestamp: atomic.AddUint32(&counter, 1), noComs: ch.noSend})
+		senderId: index, timestamp: atomic.AddUint32(&counter, 1)})
 	tracesLock.Unlock()
 }
 

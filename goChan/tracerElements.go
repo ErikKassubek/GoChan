@@ -154,7 +154,6 @@ type TracePost struct {
 	send            bool
 	senderId        uint32
 	senderTimestamp uint32
-	noComs          int
 }
 
 /*
@@ -172,10 +171,10 @@ Function to print the post trace element
 func (tp *TracePost) PrintElement() {
 	if tp.send {
 		direction := "!"
-		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.noComs)
+		fmt.Printf("post(%d, %d, %d%s)", tp.timestamp, tp.senderId, tp.chanId, direction)
 	} else {
 		direction := "?"
-		fmt.Printf("post(%d, %d, %d%s, %d, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.senderTimestamp, tp.noComs)
+		fmt.Printf("post(%d, %d, %d%s, %d)", tp.timestamp, tp.senderId, tp.chanId, direction, tp.senderTimestamp)
 	}
 }
 

@@ -142,7 +142,7 @@ func main() {
 		fmt.Println("Found Problems:\n")
 		for message, orders := range messages {
 			if len(orders) != 0 && len(message) != 0 && strings.TrimSpace(orders[0]) != "" {
-				fmt.Print("Found problem while examine the following orders: ")
+				fmt.Print("Found while examine the following orders: ")
 				for _, order := range orders {
 					fmt.Print("  ", order)
 				}
