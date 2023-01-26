@@ -44,17 +44,25 @@ and one program file main.go
 ```golang
 package main
 
-import "sync"
+import (
+	"sync"
+)
 
 func main() {
 	var m sync.Mutex
 	var n sync.Mutex
 
 	c := make(chan int)
+	d := make(chan int, 1)
 
 	go func() {
-		close(c)
-		<-c
+		d <- 1
+		select {
+		case <-d:
+			close(c)
+		default:
+			<-c
+		}
 	}()
 
 	go func() {
@@ -69,7 +77,6 @@ func main() {
 	m.Lock()
 	m.Unlock()
 	n.Unlock()
-
 	c <- 1
 }
 ```
@@ -90,33 +97,39 @@ From this we get the following output
 ```
 Determine switch execution order
 Start Program Analysis
-Analyse Program:   0%   
+Analyse Program:   0%   1,0
+Analyse Program:  50%   1,1
 Analyse Program: 100%
 
 Finish Analysis
 
 Found Problems:
 
+Found while examine the following orders:   1,0  1,1
 Potential Cyclic Mutex Locking:
-Lock: /home/.../output/program/main.go:42
+Lock: /home/.../output/show/main.go:109
   Hs:
-    /home/.../output/program/main.go:41
-Lock: /home/.../output/program/main.go:33
+    /home/.../output/show/main.go:108
+Lock: /home/.../output/show/main.go:100
   Hs:
-    /home/.../output/program/main.go:32
+    /home/.../output/show/main.go:99
 
 
-Found dangling Events for Channels created at:  
-    /home/.../output/program/main.go:16
-
-  Possible Communication Partners:
-    /home/.../output/program/main.go:45
-    -> /home/.../output/program/main.go:23
-    -> /home/.../output/program/main.go:36
-
+Found while examine the following orders:   1,0
 Possible Send to Closed Channel:
-    Close: /home/.../output/program/main.go:22
-    Send: /home/.../output/program/main.go:45
+    Close: /home/.../output/show/main.go:48
+    Send: /home/.../output/show/main.go:112
+
+Found while examine the following orders:   1,1
+No communication partner for receive at /home/.../output/show/main.go:103 
+when running the following communication:
+    /home/.../output/show/main.go:112 -> /home/.../output/show/main.go:65
+    /home/.../output/show/main.go:39 -> /home/.../output/show/main.go:41
+
+No communication partner for receive at /home/.../output/show/main.go:65 
+when running the following communication:
+    /home/.../output/show/main.go:112 -> /home/.../output/show/main.go:103
+    /home/.../output/show/main.go:39 -> /home/.../output/show/main.go:41
 ```
 In this example the paths are shortened for readability.
 
