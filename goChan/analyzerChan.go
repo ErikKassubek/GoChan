@@ -92,10 +92,8 @@ type calcVal struct {
 /*
 Function to build a vector clock for a trace and search for dangling events
 @return []vcn: List of send and receive with pre and post vector clock annotation
-@return bool, true if dangling events exist, false otherwise
-@return []string: list of creation positions of chans with dangling events
 */
-func buildVectorClockChan() ([]vcn, bool, []string) {
+func buildVectorClockChan() []vcn {
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 
@@ -160,9 +158,6 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 	// build vector clock anotated traces
 	vcTrace := make([]vcn, 0)
 
-	ok := false
-	danglingEvents := make([]string, 0)
-
 	for i, trace := range traces {
 		for j, elem := range trace {
 			switch pre := elem.(type) {
@@ -184,8 +179,6 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 					}
 				}
 				if !b { // dangling event (pre without post)
-					ok = true
-					danglingEvents = append(danglingEvents, pre.chanCreation)
 					post_default_clock := make([]int, len(traces))
 					for i := 0; i < len(traces); i++ {
 						post_default_clock[i] = math.MaxInt
@@ -220,8 +213,6 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 				}
 				if !b1 { // dangling event
 					for _, channel := range pre.chanIds {
-						ok = true
-						danglingEvents = append(danglingEvents, pre.position)
 						post_default_clock := make([]int, len(traces))
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
@@ -277,16 +268,15 @@ func buildVectorClockChan() ([]vcn, bool, []string) {
 		}
 	}
 
-	return vcTrace, ok, danglingEvents
+	return vcTrace
 }
 
 /*
 Find alternative communications based on vector clock annotated events
 @param vcTrace []vcn: vector clock annotated events
-@return []string: list of found communications
+@return map[string][]string: map for possible communications from send to receive
 */
-func findAlternativeCommunication(vcTrace []vcn) []string {
-
+func findAlternativeCommunication(vcTrace []vcn) map[string][]string {
 	collection := make(map[string][]string)
 	for i := 0; i < len(vcTrace)-1; i++ {
 		for j := i + 1; j < len(vcTrace); j++ {
@@ -309,31 +299,17 @@ func findAlternativeCommunication(vcTrace []vcn) []string {
 				collection[elem1.position] = make([]string, 0)
 			}
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
-			uncomp2 := vcUnComparable(elem1.pre, elem2.post)
-			uncomp3 := vcUnComparable(elem1.post, elem2.pre)
+			// uncomp2 := vcUnComparable(elem1.pre, elem2.post)
+			// uncomp3 := vcUnComparable(elem1.post, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
-			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp2 || uncomp3 || uncomp4)) ||
+			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
 				(getChanSize(elem1.id) != 0 && inPossibleCommunicationBuffered(elem1, elem2)) {
 				collection[elem1.position] = append(collection[elem1.position], elem2.position)
 			}
 		}
 	}
-	res_string := make([]string, 0)
-	for send, recs := range collection {
-		res := fmt.Sprintf("  Possible Communication Partners:\n    %s", send)
-		in := make(map[string]int)
-		if len(recs) == 0 {
-			res += "\n    -> No possible communication found"
-		}
-		for _, rec := range recs {
-			if _, ok := in[rec]; !ok {
-				res += fmt.Sprintf("\n    -> %s", rec)
-				in[rec] = 0
-			}
-		}
-		res_string = append(res_string, res)
-	}
-	return res_string
+
+	return collection
 }
 
 /*
@@ -348,6 +324,180 @@ func inPossibleCommunicationBuffered(send vcn, receive vcn) bool {
 	}
 	if send.second < receive.second {
 		return false
+	}
+	return true
+}
+
+/*
+Function to rearrange communications and find invalid paths
+@param rs map[string][]string: map of possible communications
+@param descriptions of invalid communications
+*/
+func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn) string {
+	listOfSends := make([]string, 0)
+	listOfReceive := make([]string, 0)
+	mapOfReceive := make(map[string][]string)
+
+	for _, vc := range vcTrace {
+		if vc.send || !isComm(vc) {
+			continue
+		}
+		if _, ok := mapOfReceive[vc.position]; !ok {
+			listOfReceive = append(listOfReceive, vc.position)
+			mapOfReceive[vc.position] = make([]string, 0)
+		}
+	}
+
+	// get all send and receive
+	for s, r := range rs {
+		listOfSends = append(listOfSends, s)
+		for _, res := range r {
+			mapOfReceive[res] = append(mapOfReceive[res], s)
+		}
+	}
+
+	resString := ""
+
+	// get errors on send
+	for i := 0; i < len(listOfSends); i++ {
+		resString += findImpossibleCommunication(rs, listOfSends, make(map[string]string), true, vcTrace)
+		if len(listOfSends) > 1 {
+			first, newList := listOfSends[0], listOfSends[1:]
+			newList = append(newList, first)
+			listOfSends = newList
+		}
+	}
+
+	// get errors on receive
+	for i := 0; i < len(listOfReceive); i++ {
+		resString += findImpossibleCommunication(mapOfReceive, listOfReceive, make(map[string]string), false, vcTrace)
+		if len(listOfReceive) > 1 {
+			first, newList := listOfReceive[0], listOfReceive[1:]
+			newList = append(newList, first)
+			listOfReceive = newList
+		}
+	}
+	return resString
+}
+
+/*
+Function to find runs which lead to problems
+@param rs map[string][]string: possible communications
+@param listOfStart []string: list of start operations
+@param path map[string]string: currently viewed path
+@param send bool: true for search of send without partner, false for receive
+@param vcTrace []vct: VCT
+@returns string: string with found problems
+*/
+func findImpossibleCommunication(rs map[string][]string, listOfStart []string, path map[string]string, send bool, vcTrace []vcn) string {
+	// fmt.Println(rs)
+	if len(listOfStart) == 0 {
+		return ""
+	}
+	start, listOfStart := listOfStart[0], listOfStart[1:]
+	found := false
+	resString := ""
+	for _, end := range rs[start] {
+		if !partnerTaken(end, path) {
+			path[start] = end
+			found = true
+			resString += findImpossibleCommunication(rs, listOfStart, path, send, vcTrace)
+		}
+	}
+	// fmt.Println("Path: ", path, found, "\n")
+	if !found && isPathPossible(path, vcTrace, send) {
+		if send {
+			resString += "No communication partner for send at "
+		} else {
+			resString += "No communication partner for receive at "
+		}
+		resString += start
+		if len(path) > 0 {
+			resString += " when running the following communication:\n"
+			for s, r := range path {
+				if send {
+					resString += "    " + s + " -> " + r + "\n"
+				} else {
+					resString += "    " + r + " -> " + s + "\n"
+				}
+			}
+		} else {
+			resString += "\n"
+		}
+		resString += "\n"
+	}
+	return resString
+}
+
+/*
+Check if an operation is already in the path
+@param receive string: operation
+@param map[string]string: path
+@return bool, true if operation is already in path, false otherwise
+*/
+func partnerTaken(receive string, path map[string]string) bool {
+	for _, rec := range path {
+		if rec == receive {
+			return true
+		}
+	}
+	return false
+}
+
+/*
+Test if a path is valid. To be valid it must be for all Operations in the
+path, that all Operations in the same routine before the path mut be
+in the path as well
+@param path map[string]string: path to test
+@param vcTrace []vct: VCT
+@param send bool: true, if the operation is send, false if receive
+*/
+func isPathPossible(path map[string]string, vcTrace []vcn, send bool) bool {
+	for start, end := range path {
+		i_start := -1
+		i_end := -1
+		for j, v := range vcTrace {
+			if start == v.position {
+				i_start = j
+			}
+			if end == v.position {
+				i_end = j
+			}
+		}
+		if i_start == -1 || i_end == -1 {
+			return false
+		}
+
+		for i, v := range vcTrace {
+			if i < i_start &&
+				v.send == send &&
+				v.routine == vcTrace[i_start].routine {
+				found := false
+				for s, _ := range path {
+					if v.position == s {
+						found = true
+						continue
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			if i < i_end &&
+				v.send == send &&
+				v.routine == vcTrace[i_end].routine {
+				found := false
+				for _, e := range path {
+					if v.position == e {
+						found = true
+						continue
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+		}
 	}
 	return true
 }
@@ -389,44 +539,6 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 		}
 	}
 	return r, res
-}
-
-/*
-Check for buffered channels where a message was written to the channel but
-never read
-@param vcTrace []vcn: vector clock annotated trace
-@return bool: true if an non empty chan was found, false otherwise
-@return []string: messages
-*/
-func checkForNonEmptyChan(vcTrace []vcn) (bool, []string) {
-	numberMessages := make(map[string]int)
-	resString := make([]string, 0)
-	res := false
-	for _, message := range vcTrace {
-		if !isComm(message) {
-			continue
-		}
-		_, ok := numberMessages[message.creation]
-		if !ok {
-			numberMessages[message.creation] = 0
-		}
-		if message.send {
-			if message.post[0] < math.MaxInt {
-				numberMessages[message.creation]++
-			}
-		} else {
-			if message.post[0] < math.MaxInt {
-				numberMessages[message.creation]--
-			}
-		}
-	}
-	for position, value := range numberMessages {
-		if value > 0 {
-			resString = append(resString, fmt.Sprintf("%d unread message(s) in Channel created at %s", value, position))
-			res = true
-		}
-	}
-	return res, resString
 }
 
 /*

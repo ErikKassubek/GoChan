@@ -170,7 +170,6 @@ func (ch Chan[T]) Send(val T) {
 		open:            true,
 	}
 
-
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{position: position, chanId: ch.id, chanCreation: ch.creation, send: true,
 		senderId: index, timestamp: atomic.AddUint32(&counter, 1)})
@@ -200,13 +199,11 @@ func (ch Chan[T]) Receive() T {
 		return res.info
 	}
 
-	ch.noRec++
-
 	tracesLock.Lock()
 	traces[index] = append(traces[index], &TracePost{position: position,
 		timestamp: atomic.AddUint32(&counter, 1), chanId: ch.id,
 		chanCreation: ch.creation, send: false,
-		senderId: res.sender, senderTimestamp: res.senderTimestamp, noComs: ch.noRec})
+		senderId: res.sender, senderTimestamp: res.senderTimestamp})
 	tracesLock.Unlock()
 
 	return res.info

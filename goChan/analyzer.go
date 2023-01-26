@@ -45,37 +45,17 @@ func RunAnalyzer() {
 	running = true
 	tracesLock.Lock()
 
-	// analyze the trace for potential deadlocks including only mutexe based
-	// on
 	_, resString := analyzeMutexDeadlock()
-	// res = res || r
 
-	vcTrace, ok, creations := buildVectorClockChan()
+	vcTrace := buildVectorClockChan()
 
-	// res = res || ok
-	danglingEventChans := ""
-	for _, id := range creations {
-		danglingEventChans += "\n    " + fmt.Sprint(id)
-	}
-	if ok {
-		resString = append(resString, fmt.Sprintf("Found dangling Events for Channels created at:  %s", danglingEventChans))
-	}
+	rs := findAlternativeCommunication(vcTrace)
 
-	r, rs := checkForNonEmptyChan(vcTrace)
-	resString = append(resString, rs...)
+	rsComm := findPossibleInvalidCommunications(rs, vcTrace)
+	resString = append(resString, rsComm)
 
-	// fmt.Println(vcTrace)
-	if ok || r {
-		rs = findAlternativeCommunication(vcTrace)
-		if len(rs) == 0 {
-			resString = append(resString, "\nNo possible communication found!")
-		}
-		resString = append(resString, rs...)
-	}
-
-	_, rs = checkForPossibleSendToClosed(vcTrace)
-	// res = res || r
-	resString = append(resString, rs...)
+	_, rsClose := checkForPossibleSendToClosed(vcTrace)
+	resString = append(resString, rsClose...)
 
 	tracesLock.Unlock()
 
