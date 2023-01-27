@@ -463,7 +463,7 @@ func instrument_function_declaration_parameter(n *ast.FuncType) {
 		case *ast.StructType:
 			translated_string = "goChan.Chan[struct{}]"
 		case *ast.ArrayType:
-			translated_string = "goChan.Chan[[]" + v.Elt.(*ast.Ident).Name + "]"
+			translated_string = "goChan.Chan[[]" + get_name(v.Elt) + "]"
 		}
 
 		// set the translated value
@@ -745,15 +745,18 @@ func instrument_send_statement(n *ast.SendStmt, c *astutil.Cursor) {
 		value = get_selector_expression_name(lit)
 	case *ast.UnaryExpr:
 		arg_string := ""
-		for _, a := range lit.X.(*ast.CompositeLit).Elts {
-			arg_string += get_name(a) + ","
-		}
-		switch t_type := lit.X.(*ast.CompositeLit).Type.(type) {
-		case *ast.Ident:
-			value = lit.Op.String() + t_type.Name + "{" + arg_string + "}"
-		case *ast.SelectorExpr:
-			value = lit.Op.String() + get_selector_expression_name(t_type) + "{" + arg_string + "}"
+		switch x := lit.X.(type) {
+		case *ast.CompositeLit:
+			for _, a := range x.Elts {
+				arg_string += get_name(a) + ","
+			}
+			switch t_type := x.Type.(type) {
+			case *ast.Ident:
+				value = lit.Op.String() + t_type.Name + "{" + arg_string + "}"
+			case *ast.SelectorExpr:
+				value = lit.Op.String() + get_selector_expression_name(t_type) + "{" + arg_string + "}"
 
+			}
 		}
 	case *ast.FuncLit:
 		func_lit = true

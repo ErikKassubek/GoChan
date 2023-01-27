@@ -131,10 +131,13 @@ when running the following communication:
     /home/.../output/show/main.go:112 -> /home/.../output/show/main.go:103
     /home/.../output/show/main.go:39 -> /home/.../output/show/main.go:41
 ```
-In this example the paths are shortened for readability.
+In this example the paths are shortened for readability. The positions 
+show the positions in the instrumented files.
 
 ## Note
 - The program must contain a go.mod file.
+- The Programm must be compilable with ```go build```. The created 
+binary must be directly runnable.
 - Please be aware, that using external library functions which have Mutexe or 
 channels as parameter or return values can lead to errors during the compilation.
 - [GoImports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports) must be installed

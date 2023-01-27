@@ -49,6 +49,9 @@ func main() {
 	for no_failed > 0  && max_runs > 0 {
 		order_add := make(map[int]int)
 		for key, size := range switch_size {
+			if size <= 0 {
+				size = 1
+			} 
 			order_add[key] = rand.Intn(size)
 		}
 		if wasNotInQueue(order_add) {
