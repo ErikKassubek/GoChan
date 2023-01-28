@@ -47,9 +47,9 @@ func RunAnalyzer() {
 
 	_, resString := analyzeMutexDeadlock()
 
-	vcTrace, b := buildVectorClockChan()
+	vcTrace, bc, b := buildVectorClockChan()
 
-	rs, s, r := findAlternativeCommunication(vcTrace, b)
+	rs, s, r := findAlternativeCommunication(vcTrace, bc, b)
 
 	rsComm := findPossibleInvalidCommunications(rs, vcTrace, s, r)
 	resString = append(resString, rsComm)
