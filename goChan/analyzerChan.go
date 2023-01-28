@@ -106,8 +106,9 @@ type infoTime struct {
 /*
 Function to build a vector clock for a trace and search for dangling events
 @return []vcn: List of send and receive with pre and post vector clock annotation
+@return map[infoTime]int: number of sends/receive on same channel strictly before send/receive
 */
-func buildVectorClockChan() []vcn {
+func buildVectorClockChan() ([]vcn, map[infoTime]int) {
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 
@@ -247,7 +248,10 @@ func buildVectorClockChan() []vcn {
 		}
 	}
 
-	// calculate first and second values
+	// calculate first and second values as well as the number of
+	// sends or receives before an operation on a buffered channel
+	before := make(map[infoTime]int)
+
 	for i := 0; i < len(vcTrace); i++ {
 		if getChanSize(vcTrace[i].id) == 0 {
 			continue
@@ -277,6 +281,18 @@ func buildVectorClockChan() []vcn {
 					rp += 1
 				}
 			}
+
+			// check if send or receive on buffered before
+			if vcTrace[i].send == vcTrace[j].send {
+				if vcIsBefore(vcTrace[i].pre, vcTrace[j].pre) || vcIsBefore(vcTrace[i].post, vcTrace[j].post) {
+					jIt := infoTime{preTime: vcTrace[j].preTime, pos: vcTrace[j].position}
+					before[jIt] = before[jIt] + 1
+				}
+				if vcIsBefore(vcTrace[j].pre, vcTrace[i].pre) || vcIsBefore(vcTrace[j].post, vcTrace[i].post) {
+					iIt := infoTime{preTime: vcTrace[i].preTime, pos: vcTrace[i].position}
+					before[iIt] = before[iIt] + 1
+				}
+			}
 		}
 		if vcTrace[i].send {
 			vcTrace[i].first = sp
@@ -287,17 +303,18 @@ func buildVectorClockChan() []vcn {
 		}
 	}
 
-	return vcTrace
+	return vcTrace, before
 }
 
 /*
 Find alternative communications based on vector clock annotated events
 @param vcTrace []vcn: vector clock annotated events
+@param before map[infoTime]int: number of send/receive strictly before send/receive on buffered channel
 @return map[string][]string: map for possible communications from send to receive
 @return []string: list of all sends
 @return []string: list of all receives
 */
-func findAlternativeCommunication(vcTrace []vcn) (map[infoTime][]infoTime, []infoTime, []infoTime) {
+func findAlternativeCommunication(vcTrace []vcn, before map[infoTime]int) (map[infoTime][]infoTime, []infoTime, []infoTime) {
 	collection := make(map[infoTime][]infoTime)
 	listOfSends := make([]infoTime, 0)
 	listOfReceive := make([]infoTime, 0)
@@ -326,16 +343,17 @@ func findAlternativeCommunication(vcTrace []vcn) (map[infoTime][]infoTime, []inf
 			if !elem1.send { // swap elems sucht that 1 is send and 2 is receive
 				elem1, elem2 = elem2, elem1
 			}
-			it := infoTime{preTime: elem1.preTime, pos: elem1.position}
+			it1 := infoTime{preTime: elem1.preTime, pos: elem1.position}
+			it2 := infoTime{preTime: elem2.preTime, pos: elem2.position}
 			// add empty list of send if nessessary
-			if len(collection[it]) == 0 {
-				collection[it] = make([]infoTime, 0)
+			if len(collection[it1]) == 0 {
+				collection[it1] = make([]infoTime, 0)
 			}
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
 			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
-				(getChanSize(elem1.id) != 0 && inPossibleCommunicationBuffered(elem1, elem2)) {
-				collection[it] = append(collection[it], infoTime{preTime: elem2.preTime, pos: elem2.position})
+				(getChanSize(elem1.id) != 0 && before[it1] == before[it2]) {
+				collection[it1] = append(collection[it1], infoTime{preTime: elem2.preTime, pos: elem2.position})
 			}
 		}
 	}
@@ -600,6 +618,22 @@ func vcUnComparable(vc1, vc2 []int) bool {
 		}
 	}
 	return false
+}
+
+/*
+Test wether operation with vectorclock vc1 is before vc2
+*/
+func vcIsBefore(vc1, vc2 []int) bool {
+	smaller := false
+	for i := 0; i < len(vc1); i++ {
+		if vc1[i] > vc2[i] {
+			return false
+		}
+		if vc1[i] < vc2[i] {
+			smaller = true
+		}
+	}
+	return smaller
 }
 
 /*
