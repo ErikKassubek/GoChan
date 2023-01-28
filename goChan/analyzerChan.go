@@ -38,6 +38,7 @@ the UNDEAD algorithm.
 /*
 Struct to save the pre and post vector clocks of a channel operation
 @field id uint32: id of the channel
+@field preTime uint32: timestamp of the pre event
 @field send bool: true if it is a send event, false otherwise
 @field pre []uint32: pre vector clock
 @field post []uint32: post vector clock
@@ -46,6 +47,7 @@ Struct to save the pre and post vector clocks of a channel operation
 */
 type vcn struct {
 	id       uint32
+	preTime  uint32
 	creation string
 	routine  int
 	position string
@@ -89,6 +91,16 @@ Struct to save calculation values for buffered channels
 type calcVal struct {
 	first  int
 	second int
+}
+
+/*
+Struct to save combination of pos info and pre-timestap
+@field preTime uint32: timestamp of the pre event
+@field pod sting: info
+*/
+type infoTime struct {
+	preTime uint32
+	pos     string
 }
 
 /*
@@ -171,7 +183,8 @@ func buildVectorClockChan() []vcn {
 						if post.chanId == pre.chanId &&
 							len(vectorClocks[int(pre.GetTimestamp())]) > i &&
 							len(vectorClocks[int(pre.GetTimestamp())]) > i {
-							vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
+							vcTrace = append(vcTrace, vcn{id: pre.chanId, preTime: pre.timestamp,
+								creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
 								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
 							b = true
 						}
@@ -186,7 +199,8 @@ func buildVectorClockChan() []vcn {
 						post_default_clock[i] = math.MaxInt
 					}
 					if len(vectorClocks[int(pre.GetTimestamp())]) > i {
-						vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
+						vcTrace = append(vcTrace, vcn{id: pre.chanId, preTime: pre.timestamp,
+							creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
 					}
 
@@ -199,7 +213,8 @@ func buildVectorClockChan() []vcn {
 						switch post := trace[k].(type) {
 						case *TracePost:
 							if post.chanId == channel.id {
-								vcTrace = append(vcTrace, vcn{id: channel.id, creation: post.chanCreation, routine: i, position: pre.position, send: !channel.receive,
+								vcTrace = append(vcTrace, vcn{id: channel.id, preTime: pre.timestamp,
+									creation: post.chanCreation, routine: i, position: pre.position, send: !channel.receive,
 									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
 								b1 = true
 								b2 = true
@@ -219,12 +234,14 @@ func buildVectorClockChan() []vcn {
 						for i := 0; i < len(traces); i++ {
 							post_default_clock[i] = math.MaxInt
 						}
-						vcTrace = append(vcTrace, vcn{id: channel.id, creation: channel.chanCreation, routine: i, position: pre.position, send: !channel.receive,
+						vcTrace = append(vcTrace, vcn{id: channel.id, preTime: pre.timestamp,
+							creation: channel.chanCreation, routine: i, position: pre.position, send: !channel.receive,
 							pre: vectorClocks[int(pre.GetTimestamp())][i], post: post_default_clock})
 					}
 				}
 			case *TraceClose:
-				vcTrace = append(vcTrace, vcn{id: pre.chanId, creation: pre.chanCreation, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
+				vcTrace = append(vcTrace, vcn{id: pre.chanId, preTime: pre.timestamp,
+					creation: pre.chanCreation, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
 					post: vectorClocks[int(pre.GetTimestamp())][i]})
 			}
 		}
@@ -280,17 +297,17 @@ Find alternative communications based on vector clock annotated events
 @return []string: list of all sends
 @return []string: list of all receives
 */
-func findAlternativeCommunication(vcTrace []vcn) (map[string][]string, []string, []string) {
-	collection := make(map[string][]string)
-	listOfSends := make([]string, 0)
-	listOfReceive := make([]string, 0)
+func findAlternativeCommunication(vcTrace []vcn) (map[infoTime][]infoTime, []infoTime, []infoTime) {
+	collection := make(map[infoTime][]infoTime)
+	listOfSends := make([]infoTime, 0)
+	listOfReceive := make([]infoTime, 0)
 	for i := 0; i < len(vcTrace); i++ {
 		// collect send and receive
 		if isComm(vcTrace[i]) {
 			if vcTrace[i].send {
-				listOfSends = append(listOfSends, vcTrace[i].position)
+				listOfSends = append(listOfSends, infoTime{preTime: vcTrace[i].preTime, pos: vcTrace[i].position})
 			} else {
-				listOfReceive = append(listOfReceive, vcTrace[i].position)
+				listOfReceive = append(listOfReceive, infoTime{preTime: vcTrace[i].preTime, pos: vcTrace[i].position})
 			}
 		}
 		// find possible pairs
@@ -309,15 +326,16 @@ func findAlternativeCommunication(vcTrace []vcn) (map[string][]string, []string,
 			if !elem1.send { // swap elems sucht that 1 is send and 2 is receive
 				elem1, elem2 = elem2, elem1
 			}
+			it := infoTime{preTime: elem1.preTime, pos: elem1.position}
 			// add empty list of send if nessessary
-			if len(collection[elem1.position]) == 0 {
-				collection[elem1.position] = make([]string, 0)
+			if len(collection[it]) == 0 {
+				collection[it] = make([]infoTime, 0)
 			}
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
 			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
 				(getChanSize(elem1.id) != 0 && inPossibleCommunicationBuffered(elem1, elem2)) {
-				collection[elem1.position] = append(collection[elem1.position], elem2.position)
+				collection[it] = append(collection[it], infoTime{preTime: elem2.preTime, pos: elem2.position})
 			}
 		}
 	}
@@ -348,16 +366,17 @@ Function to rearrange communications and find invalid paths
 @param listOfSends []string: list of all send
 @param listOfReceive []string: list of all receive
 */
-func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn,
-	listOfSends []string, listOfReceive []string) string {
-	mapOfReceive := make(map[string][]string)
+func findPossibleInvalidCommunications(rs map[infoTime][]infoTime, vcTrace []vcn,
+	listOfSends []infoTime, listOfReceive []infoTime) string {
+	mapOfReceive := make(map[infoTime][]infoTime)
 
 	for _, vc := range vcTrace {
 		if vc.send || !isComm(vc) {
 			continue
 		}
-		if _, ok := mapOfReceive[vc.position]; !ok {
-			mapOfReceive[vc.position] = make([]string, 0)
+		pIt := infoTime{preTime: vc.preTime, pos: vc.position}
+		if _, ok := mapOfReceive[pIt]; !ok {
+			mapOfReceive[pIt] = make([]infoTime, 0)
 		}
 	}
 
@@ -372,7 +391,7 @@ func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn,
 
 	// get errors on send
 	for i := 0; i < len(listOfSends); i++ {
-		resString += findImpossibleCommunication(rs, listOfSends, make(map[string]string), true, vcTrace)
+		resString += findImpossibleCommunication(rs, listOfSends, make(map[infoTime]infoTime), true, vcTrace)
 		if len(listOfSends) > 1 {
 			first, newList := listOfSends[0], listOfSends[1:]
 			newList = append(newList, first)
@@ -382,7 +401,7 @@ func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn,
 
 	// get errors on receive
 	for i := 0; i < len(listOfReceive); i++ {
-		resString += findImpossibleCommunication(mapOfReceive, listOfReceive, make(map[string]string), false, vcTrace)
+		resString += findImpossibleCommunication(mapOfReceive, listOfReceive, make(map[infoTime]infoTime), false, vcTrace)
 		if len(listOfReceive) > 1 {
 			first, newList := listOfReceive[0], listOfReceive[1:]
 			newList = append(newList, first)
@@ -401,7 +420,7 @@ Function to find runs which lead to problems
 @param vcTrace []vct: VCT
 @returns string: string with found problems
 */
-func findImpossibleCommunication(rs map[string][]string, listOfStart []string, path map[string]string, send bool, vcTrace []vcn) string {
+func findImpossibleCommunication(rs map[infoTime][]infoTime, listOfStart []infoTime, path map[infoTime]infoTime, send bool, vcTrace []vcn) string {
 	// fmt.Println(rs)
 	if len(listOfStart) == 0 {
 		return ""
@@ -423,14 +442,14 @@ func findImpossibleCommunication(rs map[string][]string, listOfStart []string, p
 		} else {
 			resString += "No communication partner for receive at "
 		}
-		resString += start
+		resString += start.pos
 		if len(path) > 0 {
 			resString += " when running the following communication:\n"
 			for s, r := range path {
 				if send {
-					resString += "    " + s + " -> " + r + "\n"
+					resString += "    " + s.pos + " -> " + r.pos + "\n"
 				} else {
-					resString += "    " + r + " -> " + s + "\n"
+					resString += "    " + r.pos + " -> " + s.pos + "\n"
 				}
 			}
 		} else {
@@ -447,7 +466,7 @@ Check if an operation is already in the path
 @param map[string]string: path
 @return bool, true if operation is already in path, false otherwise
 */
-func partnerTaken(receive string, path map[string]string) bool {
+func partnerTaken(receive infoTime, path map[infoTime]infoTime) bool {
 	for _, rec := range path {
 		if rec == receive {
 			return true
@@ -465,7 +484,7 @@ in the path as well
 @param send bool: true, if the operation is send, false if receive
 @param s string: string of operation without communication
 */
-func isPathPossible(path map[string]string, vcTrace []vcn, send bool, s string) bool {
+func isPathPossible(path map[infoTime]infoTime, vcTrace []vcn, send bool, s infoTime) bool {
 	for start, end := range path {
 		if start == s || end == s {
 			return false
@@ -473,10 +492,11 @@ func isPathPossible(path map[string]string, vcTrace []vcn, send bool, s string) 
 		i_start := -1
 		i_end := -1
 		for j, v := range vcTrace {
-			if start == v.position {
+			vIt := infoTime{preTime: v.preTime, pos: v.position}
+			if start == vIt {
 				i_start = j
 			}
-			if end == v.position {
+			if end == vIt {
 				i_end = j
 			}
 		}
@@ -490,7 +510,8 @@ func isPathPossible(path map[string]string, vcTrace []vcn, send bool, s string) 
 				v.routine == vcTrace[i_start].routine {
 				found := false
 				for s, _ := range path {
-					if v.position == s {
+					vIt := infoTime{preTime: v.preTime, pos: v.position}
+					if s == vIt {
 						found = true
 						continue
 					}
@@ -504,7 +525,8 @@ func isPathPossible(path map[string]string, vcTrace []vcn, send bool, s string) 
 				v.routine == vcTrace[i_end].routine {
 				found := false
 				for _, e := range path {
-					if v.position == e {
+					vIt := infoTime{preTime: v.preTime, pos: v.position}
+					if vIt == e {
 						found = true
 						continue
 					}
