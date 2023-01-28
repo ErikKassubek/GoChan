@@ -84,16 +84,6 @@ func (s ttes) Less(i, j int) bool {
 }
 
 /*
-Struct to save calculation values for buffered channels
-@field first int
-@field second int
-*/
-type calcVal struct {
-	first  int
-	second int
-}
-
-/*
 Struct to save combination of pos info and pre-timestap
 @field preTime uint32: timestamp of the pre event
 @field pod sting: info
@@ -359,22 +349,6 @@ func findAlternativeCommunication(vcTrace []vcn, before map[infoTime]int) (map[i
 	}
 
 	return collection, listOfSends, listOfReceive
-}
-
-/*
-Funktion to check if communication between buffered channels is possible
-@param send vcn: vector clock annotated trace element of send
-@param receive vcn: vector clock annotated trace element of receive
-@return bool: true, if communication is possible, false otherwise
-*/
-func inPossibleCommunicationBuffered(send vcn, receive vcn) bool {
-	if send.first > receive.first {
-		return false
-	}
-	if send.second < receive.second {
-		return false
-	}
-	return true
 }
 
 /*
@@ -698,40 +672,6 @@ func contains(list []uint32, elem uint32) bool {
 }
 
 /*
-Check if a TracePost corresponds to an element in an PreOpj list
-created by an TracePreSelect
-@param list []PreOpj: list of PreOps elements
-@param elem TracePost: post event
-@return bool: true, if elem corresponds to an element in list, false otherwise
-*/
-func containsChan(elem *TracePost, list []PreObj) bool {
-	for _, pre := range list {
-		if pre.id == elem.chanId && pre.receive != elem.send {
-			return true
-		}
-	}
-	return false
-}
-
-/*
-Get a list of all cases in a pre select which are in listId
-@param listId []uint32: list of ids
-@param listPreObj []PreObj: list of PreObjs as created by a pre select
-@return []PreObj: list of preObj from listPreObj, where the channel is in listId
-*/
-func compaire(listId []uint32, listPreObj []PreObj) []PreObj {
-	res := make([]PreObj, 0)
-	for _, id := range listId {
-		for _, pre := range listPreObj {
-			if id == pre.id {
-				res = append(res, pre)
-			}
-		}
-	}
-	return res
-}
-
-/*
 Get the capacity of a channel
 @param index int: id of the channel
 @return int: size of the channel
@@ -758,18 +698,4 @@ func isComm(v vcn) bool {
 		}
 	}
 	return false
-}
-
-/*
-Calculate the absolute difference between x and y
-@param x uint32
-@param y uint32
-@return int: |x-y|
-*/
-func distance(x int, y int) int {
-	if x > y {
-		return x - y
-	} else {
-		return y - x
-	}
 }
