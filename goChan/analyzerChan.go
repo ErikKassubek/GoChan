@@ -83,6 +83,8 @@ func (s ttes) Less(i, j int) bool {
 
 /*
 Struct to save calculation values for buffered channels
+@field first int
+@field second int
 */
 type calcVal struct {
 	first  int
@@ -275,10 +277,23 @@ func buildVectorClockChan() []vcn {
 Find alternative communications based on vector clock annotated events
 @param vcTrace []vcn: vector clock annotated events
 @return map[string][]string: map for possible communications from send to receive
+@return []string: list of all sends
+@return []string: list of all receives
 */
-func findAlternativeCommunication(vcTrace []vcn) map[string][]string {
+func findAlternativeCommunication(vcTrace []vcn) (map[string][]string, []string, []string) {
 	collection := make(map[string][]string)
-	for i := 0; i < len(vcTrace)-1; i++ {
+	listOfSends := make([]string, 0)
+	listOfReceive := make([]string, 0)
+	for i := 0; i < len(vcTrace); i++ {
+		// collect send and receive
+		if isComm(vcTrace[i]) {
+			if vcTrace[i].send {
+				listOfSends = append(listOfSends, vcTrace[i].position)
+			} else {
+				listOfReceive = append(listOfReceive, vcTrace[i].position)
+			}
+		}
+		// find possible pairs
 		for j := i + 1; j < len(vcTrace); j++ {
 			elem1 := vcTrace[i]
 			elem2 := vcTrace[j]
@@ -299,8 +314,6 @@ func findAlternativeCommunication(vcTrace []vcn) map[string][]string {
 				collection[elem1.position] = make([]string, 0)
 			}
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
-			// uncomp2 := vcUnComparable(elem1.pre, elem2.post)
-			// uncomp3 := vcUnComparable(elem1.post, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
 			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
 				(getChanSize(elem1.id) != 0 && inPossibleCommunicationBuffered(elem1, elem2)) {
@@ -309,7 +322,7 @@ func findAlternativeCommunication(vcTrace []vcn) map[string][]string {
 		}
 	}
 
-	return collection
+	return collection, listOfSends, listOfReceive
 }
 
 /*
@@ -331,11 +344,12 @@ func inPossibleCommunicationBuffered(send vcn, receive vcn) bool {
 /*
 Function to rearrange communications and find invalid paths
 @param rs map[string][]string: map of possible communications
-@param descriptions of invalid communications
+@param vcTrace []vcn: vector annotated trace
+@param listOfSends []string: list of all send
+@param listOfReceive []string: list of all receive
 */
-func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn) string {
-	listOfSends := make([]string, 0)
-	listOfReceive := make([]string, 0)
+func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn,
+	listOfSends []string, listOfReceive []string) string {
 	mapOfReceive := make(map[string][]string)
 
 	for _, vc := range vcTrace {
@@ -343,14 +357,12 @@ func findPossibleInvalidCommunications(rs map[string][]string, vcTrace []vcn) st
 			continue
 		}
 		if _, ok := mapOfReceive[vc.position]; !ok {
-			listOfReceive = append(listOfReceive, vc.position)
 			mapOfReceive[vc.position] = make([]string, 0)
 		}
 	}
 
 	// get all send and receive
 	for s, r := range rs {
-		listOfSends = append(listOfSends, s)
 		for _, res := range r {
 			mapOfReceive[res] = append(mapOfReceive[res], s)
 		}

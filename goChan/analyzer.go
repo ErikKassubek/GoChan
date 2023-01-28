@@ -49,9 +49,9 @@ func RunAnalyzer() {
 
 	vcTrace := buildVectorClockChan()
 
-	rs := findAlternativeCommunication(vcTrace)
+	rs, s, r := findAlternativeCommunication(vcTrace)
 
-	rsComm := findPossibleInvalidCommunications(rs, vcTrace)
+	rsComm := findPossibleInvalidCommunications(rs, vcTrace, s, r)
 	resString = append(resString, rsComm)
 
 	_, rsClose := checkForPossibleSendToClosed(vcTrace)
