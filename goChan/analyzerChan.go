@@ -405,7 +405,7 @@ func findImpossibleCommunication(rs map[string][]string, listOfStart []string, p
 		}
 	}
 	// fmt.Println("Path: ", path, found, "\n")
-	if !found && isPathPossible(path, vcTrace, send) {
+	if !found && isPathPossible(path, vcTrace, send, start) {
 		if send {
 			resString += "No communication partner for send at "
 		} else {
@@ -451,9 +451,13 @@ in the path as well
 @param path map[string]string: path to test
 @param vcTrace []vct: VCT
 @param send bool: true, if the operation is send, false if receive
+@param s string: string of operation without communication
 */
-func isPathPossible(path map[string]string, vcTrace []vcn, send bool) bool {
+func isPathPossible(path map[string]string, vcTrace []vcn, send bool, s string) bool {
 	for start, end := range path {
+		if start == s || end == s {
+			return false
+		}
 		i_start := -1
 		i_end := -1
 		for j, v := range vcTrace {
