@@ -1,4 +1,4 @@
-package goChan
+package main
 
 import (
 	"fmt"
@@ -84,6 +84,16 @@ func (s ttes) Less(i, j int) bool {
 }
 
 /*
+Struct to save calculation values for buffered channels
+@field first int
+@field second int
+*/
+type calcVal struct {
+	first  int
+	second int
+}
+
+/*
 Struct to save combination of pos info and pre-timestap
 @field preTime uint32: timestamp of the pre event
 @field pod sting: info
@@ -96,9 +106,10 @@ type infoTime struct {
 /*
 Function to build a vector clock for a trace and search for dangling events
 @return []vcn: List of send and receive with pre and post vector clock annotation
+@return map[infoTime]int: number of sends/receive on same channel before or cuncurrent with send/receive
 @return map[infoTime]int: number of sends/receive on same channel strictly before send/receive
 */
-func buildVectorClockChan() ([]vcn, map[infoTime]int) {
+func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 	// build one trace with all elements in the form [(routine, elem), ...]
 	var traceTotal ttes
 
@@ -239,7 +250,8 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int) {
 	}
 
 	// calculate first and second values as well as the number of
-	// sends or receives before an operation on a buffered channel
+	// sends or receives beforeOrEqual an operation on a buffered channel
+	beforeOrEqual := make(map[infoTime]int)
 	before := make(map[infoTime]int)
 
 	for i := 0; i < len(vcTrace); i++ {
@@ -273,14 +285,23 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int) {
 			}
 
 			// check if send or receive on buffered before
+			if i > j {
+				continue
+			}
 			if vcTrace[i].send == vcTrace[j].send {
-				if vcIsBefore(vcTrace[i].pre, vcTrace[j].pre) || vcIsBefore(vcTrace[i].post, vcTrace[j].post) {
+				if vcIsBeforeOrConcurrent(vcTrace[i].pre, vcTrace[j].pre) || vcIsBeforeOrConcurrent(vcTrace[i].post, vcTrace[j].post) {
 					jIt := infoTime{preTime: vcTrace[j].preTime, pos: vcTrace[j].position}
-					before[jIt] = before[jIt] + 1
+					beforeOrEqual[jIt] = beforeOrEqual[jIt] + 1
+					if vcIsBefore(vcTrace[i].pre, vcTrace[j].pre) || vcIsBefore(vcTrace[i].post, vcTrace[j].post) {
+						before[jIt] = before[jIt] + 1
+					}
 				}
-				if vcIsBefore(vcTrace[j].pre, vcTrace[i].pre) || vcIsBefore(vcTrace[j].post, vcTrace[i].post) {
+				if vcIsBeforeOrConcurrent(vcTrace[j].pre, vcTrace[i].pre) || vcIsBeforeOrConcurrent(vcTrace[j].post, vcTrace[i].post) {
 					iIt := infoTime{preTime: vcTrace[i].preTime, pos: vcTrace[i].position}
-					before[iIt] = before[iIt] + 1
+					beforeOrEqual[iIt] = beforeOrEqual[iIt] + 1
+					if vcIsBefore(vcTrace[j].pre, vcTrace[i].pre) || vcIsBefore(vcTrace[j].post, vcTrace[i].post) {
+						before[iIt] = before[iIt] + 1
+					}
 				}
 			}
 		}
@@ -292,8 +313,7 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int) {
 			vcTrace[i].second = rp + ru
 		}
 	}
-
-	return vcTrace, before
+	return vcTrace, beforeOrEqual, before
 }
 
 /*
@@ -304,7 +324,7 @@ Find alternative communications based on vector clock annotated events
 @return []string: list of all sends
 @return []string: list of all receives
 */
-func findAlternativeCommunication(vcTrace []vcn, before map[infoTime]int) (map[infoTime][]infoTime, []infoTime, []infoTime) {
+func findAlternativeCommunication(vcTrace []vcn, beforeCurrent map[infoTime]int, before map[infoTime]int) (map[infoTime][]infoTime, []infoTime, []infoTime) {
 	collection := make(map[infoTime][]infoTime)
 	listOfSends := make([]infoTime, 0)
 	listOfReceive := make([]infoTime, 0)
@@ -342,7 +362,7 @@ func findAlternativeCommunication(vcTrace []vcn, before map[infoTime]int) (map[i
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
 			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
-				(getChanSize(elem1.id) != 0 && before[it1] == before[it2]) {
+				(getChanSize(elem1.id) != 0 && beforeCurrent[it1] >= beforeCurrent[it2] && before[it1] <= before[it2]) {
 				collection[it1] = append(collection[it1], infoTime{preTime: elem2.preTime, pos: elem2.position})
 			}
 		}
@@ -597,6 +617,22 @@ func vcUnComparable(vc1, vc2 []int) bool {
 /*
 Test wether operation with vectorclock vc1 is before vc2
 */
+func vcIsBeforeOrConcurrent(vc1, vc2 []int) bool {
+	smaller := false
+	for i := 0; i < len(vc1); i++ {
+		if vc2[i] > vc1[i] {
+			return true
+		}
+		if vc2[i] < vc1[i] {
+			smaller = true
+		}
+	}
+	return !smaller
+}
+
+/*
+Test wether operation with vectorclock vc1 is before vc2
+*/
 func vcIsBefore(vc1, vc2 []int) bool {
 	smaller := false
 	for i := 0; i < len(vc1); i++ {
@@ -672,6 +708,40 @@ func contains(list []uint32, elem uint32) bool {
 }
 
 /*
+Check if a TracePost corresponds to an element in an PreOpj list
+created by an TracePreSelect
+@param list []PreOpj: list of PreOps elements
+@param elem TracePost: post event
+@return bool: true, if elem corresponds to an element in list, false otherwise
+*/
+func containsChan(elem *TracePost, list []PreObj) bool {
+	for _, pre := range list {
+		if pre.id == elem.chanId && pre.receive != elem.send {
+			return true
+		}
+	}
+	return false
+}
+
+/*
+Get a list of all cases in a pre select which are in listId
+@param listId []uint32: list of ids
+@param listPreObj []PreObj: list of PreObjs as created by a pre select
+@return []PreObj: list of preObj from listPreObj, where the channel is in listId
+*/
+func compaire(listId []uint32, listPreObj []PreObj) []PreObj {
+	res := make([]PreObj, 0)
+	for _, id := range listId {
+		for _, pre := range listPreObj {
+			if id == pre.id {
+				res = append(res, pre)
+			}
+		}
+	}
+	return res
+}
+
+/*
 Get the capacity of a channel
 @param index int: id of the channel
 @return int: size of the channel
@@ -698,4 +768,18 @@ func isComm(v vcn) bool {
 		}
 	}
 	return false
+}
+
+/*
+Calculate the absolute difference between x and y
+@param x uint32
+@param y uint32
+@return int: |x-y|
+*/
+func distance(x int, y int) int {
+	if x > y {
+		return x - y
+	} else {
+		return y - x
+	}
 }
