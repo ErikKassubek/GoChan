@@ -83,6 +83,7 @@ func checkForDoubleLocking() (bool, []string) {
 					if a.lockId == b.lockId && (!a.read || !b.read) {
 						r = true
 						res = append(res, fmt.Sprintf("Found double locking:\n    %s -> %s", b.position, a.position))
+						found = true
 					}
 				case *TraceUnlock:
 					if a.lockId == b.lockId {
