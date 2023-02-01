@@ -144,7 +144,7 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 				case *TraceSignal:
 					if t.routine == e.routine {
 						vectorClocks[i+1] = update_reveive(vectorClocks[i], int(e.routine), int(traceTotal[j].routine),
-							vectorClocks[int(t.GetTimestamp())-1][traceTotal[j].routine])
+							vectorClocks[int(t.GetTimestamp())][traceTotal[j].routine])
 						b = true
 					}
 				}
@@ -159,7 +159,7 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 				for j := i - 1; j >= 0; j-- {
 					if e.senderTimestamp == traceTotal[j].elem.GetTimestamp() {
 						vectorClocks[i+1] = update_reveive(vectorClocks[i], int(elem.routine), int(traceTotal[j].routine),
-							vectorClocks[int(e.senderTimestamp)-1][traceTotal[j].routine])
+							vectorClocks[int(e.senderTimestamp)][traceTotal[j].routine])
 						break
 					}
 
