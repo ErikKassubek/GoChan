@@ -76,6 +76,9 @@ func checkForDoubleLocking() (bool, []string) {
 	for _, trace := range traces {
 		switch a := trace[len(trace)-1].(type) {
 		case *TraceLock:
+			if a.try {
+				break
+			}
 			found := false
 			for i := len(trace) - 2; i >= 0; i-- {
 				switch b := trace[i].(type) {
