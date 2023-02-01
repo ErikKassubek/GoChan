@@ -250,14 +250,14 @@ func (m *RWMutex) t_Unlock(read bool) {
 
 	position := getPosition(2)
 
+	tracesLock.Lock()
+	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
+		lockId: m.id, mutexCreation: m.creation})
+	tracesLock.Unlock()
+
 	if read {
 		m.mu.RUnlock()
 	} else {
 		m.mu.Unlock()
 	}
-
-	tracesLock.Lock()
-	traces[index] = append(traces[index], &TraceUnlock{position: position, timestamp: atomic.AddUint32(&counter, 1),
-		lockId: m.id, mutexCreation: m.creation})
-	tracesLock.Unlock()
 }

@@ -46,7 +46,12 @@ func analyzeMutexDeadlock() (bool, []string) {
 	res := false
 	resString := make([]string, 0)
 
-	// build the graph and check for double locking
+	//check for double locking
+	rd, sd := checkForDoubleLocking()
+	res = res || rd
+	resString = append(resString, sd...)
+
+	// build the graph
 	r, s := buildGraph()
 	res = res || r
 	resString = append(resString, s...)
@@ -63,7 +68,40 @@ func analyzeMutexDeadlock() (bool, []string) {
 }
 
 /*
+Check for double locking
+*/
+func checkForDoubleLocking() (bool, []string) {
+	r := false
+	res := make([]string, 0)
+	for _, trace := range traces {
+		switch a := trace[len(trace)-1].(type) {
+		case *TraceLock:
+			found := false
+			for i := len(trace) - 2; i >= 0; i-- {
+				switch b := trace[i].(type) {
+				case *TraceLock:
+					if a.lockId == b.lockId && (!a.read || !b.read) {
+						r = true
+						res = append(res, fmt.Sprintf("Found double locking:\n    %s -> %s", b.position, a.position))
+					}
+				case *TraceUnlock:
+					if a.lockId == b.lockId {
+						found = true
+					}
+				}
+				if found {
+					break
+				}
+			}
+		}
+	}
+	return r, res
+}
+
+/*
 Build a lock-graph from the trace.
+@return bool: true, if non released lock was found
+@return []string]: info about non released lock
 */
 func buildGraph() (bool, []string) {
 	lockGraph = make([][]dependency, len(traces))
