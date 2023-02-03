@@ -154,6 +154,7 @@ func main() {
 			fmt.Println(message)
 			fmt.Print("\n")
 		}
+		fmt.Println("Note: The positions show the positions in the instrumented code!")
 	}
 }
 

@@ -122,17 +122,18 @@ Possible Send to Closed Channel:
 
 Found while examine the following orders:   1,1
 No communication partner for receive at /home/.../output/show/main.go:103 
-when running the following communication:
+	when running the following communication:
     /home/.../output/show/main.go:112 -> /home/.../output/show/main.go:65
     /home/.../output/show/main.go:39 -> /home/.../output/show/main.go:41
 
 No communication partner for receive at /home/.../output/show/main.go:65 
-when running the following communication:
+	when running the following communication:
     /home/.../output/show/main.go:112 -> /home/.../output/show/main.go:103
     /home/.../output/show/main.go:39 -> /home/.../output/show/main.go:41
+	
+Note: The positions show the positions in the instrumented code!
 ```
-In this example the paths are shortened for readability. The positions 
-show the positions in the instrumented files.
+In this example the paths are shortened for readability.
 
 ## Note
 - The program must contain a go.mod file.
