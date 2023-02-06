@@ -42,8 +42,6 @@ Struct to save the pre and post vector clocks of a channel operation
 @field send bool: true if it is a send event, false otherwise
 @field pre []uint32: pre vector clock
 @field post []uint32: post vector clock
-@field first int: number of Send strongly before send or difference between number receive strongly before receive and receive independent of receive
-@field second int: sum of number send strongly before send and send independent of send or sum of number receive strongly before receive and receive independent of receive
 */
 type vcn struct {
 	id       uint32
@@ -54,8 +52,6 @@ type vcn struct {
 	send     bool
 	pre      []int
 	post     []int
-	first    int
-	second   int
 }
 
 /*
@@ -106,7 +102,7 @@ type infoTime struct {
 /*
 Function to build a vector clock for a trace and search for dangling events
 @return []vcn: List of send and receive with pre and post vector clock annotation
-@return map[infoTime]int: number of sends/receive on same channel before or cuncurrent with send/receive
+@return map[infoTime]int: number of sends/receive on same channel cuncurrent with send/receive
 @return map[infoTime]int: number of sends/receive on same channel strictly before send/receive
 */
 func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
@@ -129,10 +125,6 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 	}
 
 	for i, elem := range traceTotal {
-
-		// int("(", elem.routine + 1, ", ")
-		// elem.elem.PrintElement()
-		// intln(")")
 
 		switch e := elem.elem.(type) {
 		case *TraceSignal:
@@ -250,38 +242,20 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 	}
 
 	// calculate first and second values as well as the number of
-	// sends or receives beforeOrEqual an operation on a buffered channel
-	beforeOrEqual := make(map[infoTime]int)
+	// sends or receives concurrent an operation on a buffered channel
+	concurrent := make(map[infoTime]int)
 	before := make(map[infoTime]int)
 
 	for i := 0; i < len(vcTrace); i++ {
 		if getChanSize(vcTrace[i].id) == 0 {
 			continue
 		}
-		sp := 0 // no of send before send in i
-		su := 0 // no of send independent of send in i
-		rp := 0 // no of receive before send in i
-		ru := 0 // no of receive independent of receive in i
 		for j := 0; j < len(vcTrace); j++ {
 			if i == j {
 				continue
 			}
 			if vcTrace[i].id != vcTrace[j].id {
 				continue
-			}
-			indep := vcUnComparable(vcTrace[i].pre, vcTrace[j].pre)
-			if vcTrace[j].send {
-				if indep {
-					su += 1
-				} else if vcTrace[i].routine == vcTrace[j].routine && j < i {
-					sp += 1
-				}
-			} else {
-				if indep {
-					ru += 1
-				} else if vcTrace[i].routine == vcTrace[j].routine && j < i {
-					rp += 1
-				}
 			}
 
 			// check if send or receive on buffered before
@@ -291,40 +265,36 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 			if vcTrace[i].send == vcTrace[j].send {
 				if vcIsBeforeOrConcurrent(vcTrace[i].pre, vcTrace[j].pre) || vcIsBeforeOrConcurrent(vcTrace[i].post, vcTrace[j].post) {
 					jIt := infoTime{preTime: vcTrace[j].preTime, pos: vcTrace[j].position}
-					beforeOrEqual[jIt] = beforeOrEqual[jIt] + 1
 					if vcIsBefore(vcTrace[i].pre, vcTrace[j].pre) || vcIsBefore(vcTrace[i].post, vcTrace[j].post) {
 						before[jIt] = before[jIt] + 1
+					} else {
+						concurrent[jIt] = concurrent[jIt] + 1
 					}
 				}
 				if vcIsBeforeOrConcurrent(vcTrace[j].pre, vcTrace[i].pre) || vcIsBeforeOrConcurrent(vcTrace[j].post, vcTrace[i].post) {
 					iIt := infoTime{preTime: vcTrace[i].preTime, pos: vcTrace[i].position}
-					beforeOrEqual[iIt] = beforeOrEqual[iIt] + 1
 					if vcIsBefore(vcTrace[j].pre, vcTrace[i].pre) || vcIsBefore(vcTrace[j].post, vcTrace[i].post) {
 						before[iIt] = before[iIt] + 1
+					} else {
+						concurrent[iIt] = concurrent[iIt] + 1
 					}
 				}
 			}
 		}
-		if vcTrace[i].send {
-			vcTrace[i].first = sp
-			vcTrace[i].second = sp + su
-		} else {
-			vcTrace[i].first = rp - ru
-			vcTrace[i].second = rp + ru
-		}
 	}
-	return vcTrace, beforeOrEqual, before
+	return vcTrace, concurrent, before
 }
 
 /*
 Find alternative communications based on vector clock annotated events
 @param vcTrace []vcn: vector clock annotated events
+@param concurrent map[infoTime]int: number of send/receive concurrent with send/receive on buffered channel
 @param before map[infoTime]int: number of send/receive strictly before send/receive on buffered channel
 @return map[string][]string: map for possible communications from send to receive
 @return []string: list of all sends
 @return []string: list of all receives
 */
-func findAlternativeCommunication(vcTrace []vcn, beforeCurrent map[infoTime]int, before map[infoTime]int) (map[infoTime][]infoTime, []infoTime, []infoTime) {
+func findAlternativeCommunication(vcTrace []vcn, concurrent map[infoTime]int, before map[infoTime]int) (map[infoTime][]infoTime, []infoTime, []infoTime) {
 	collection := make(map[infoTime][]infoTime)
 	listOfSends := make([]infoTime, 0)
 	listOfReceive := make([]infoTime, 0)
@@ -362,12 +332,11 @@ func findAlternativeCommunication(vcTrace []vcn, beforeCurrent map[infoTime]int,
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
 			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
-				(getChanSize(elem1.id) != 0 && beforeCurrent[it1] >= beforeCurrent[it2] && before[it1] <= before[it2]) {
+				(getChanSize(elem1.id) != 0 && before[it1] <= before[it2]+concurrent[it2] && before[it1]+concurrent[it1] >= before[it2]) {
 				collection[it1] = append(collection[it1], infoTime{preTime: elem2.preTime, pos: elem2.position})
 			}
 		}
 	}
-
 	return collection, listOfSends, listOfReceive
 }
 
@@ -433,7 +402,6 @@ Function to find runs which lead to problems
 @returns string: string with found problems
 */
 func findImpossibleCommunication(rs map[infoTime][]infoTime, listOfStart []infoTime, path map[infoTime]infoTime, send bool, vcTrace []vcn) string {
-	// fmt.Println(rs)
 	if len(listOfStart) == 0 {
 		return ""
 	}
@@ -447,7 +415,7 @@ func findImpossibleCommunication(rs map[infoTime][]infoTime, listOfStart []infoT
 			resString += findImpossibleCommunication(rs, listOfStart, path, send, vcTrace)
 		}
 	}
-	// fmt.Println("Path: ", path, found, "\n")
+
 	if !found && isPathPossible(path, vcTrace, send, start) {
 		if send {
 			resString += "No communication partner for send at "
