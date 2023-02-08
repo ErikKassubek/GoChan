@@ -571,7 +571,7 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 				for _, vc := range vcTrace {
 					uncompPre := vcUnComparable(closeVc.pre, vc.pre)
 					uncompPost := vcUnComparable(closeVc.post, vc.post)
-					if vc.id == sel.chanId && vc.send && (uncompPre || uncompPost) && notSameMutex(closeVc, vc) {
+					if vc.id == sel.chanId && vc.send && (uncompPre || uncompPost) {
 						r = true
 						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
