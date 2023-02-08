@@ -42,6 +42,7 @@ Struct to save the pre and post vector clocks of a channel operation
 @field send bool: true if it is a send event, false otherwise
 @field pre []uint32: pre vector clock
 @field post []uint32: post vector clock
+@field mutexe []mutexElem: ids of the mutexes which are hold while execution operation by the same routine
 */
 type vcn struct {
 	id       uint32
@@ -52,6 +53,17 @@ type vcn struct {
 	send     bool
 	pre      []int
 	post     []int
+	mutexe   []mutexElem
+}
+
+/*
+Element to save a mutex in vcn
+@field id uint32: id of the mutex
+@field rw bool: true if rLock, false otherwise
+*/
+type mutexElem struct {
+	id uint32
+	rw bool
 }
 
 /*
@@ -157,6 +169,7 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 
 				}
 			}
+
 		default:
 			vectorClocks[i+1] = vectorClocks[i]
 		}
@@ -167,6 +180,7 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 	vcTrace := make([]vcn, 0)
 
 	for i, trace := range traces {
+		mut := make([]mutexElem, 0)
 		for j, elem := range trace {
 			switch pre := elem.(type) {
 			case *TracePre: // normal pre
@@ -179,7 +193,8 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 							len(vectorClocks[int(pre.GetTimestamp())]) > i {
 							vcTrace = append(vcTrace, vcn{id: pre.chanId, preTime: pre.timestamp,
 								creation: pre.chanCreation, routine: i, position: pre.position, send: pre.send,
-								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+								pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
+								mutexe: mut})
 							b = true
 						}
 					}
@@ -209,7 +224,8 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 							if post.chanId == channel.id {
 								vcTrace = append(vcTrace, vcn{id: channel.id, preTime: pre.timestamp,
 									creation: post.chanCreation, routine: i, position: pre.position, send: !channel.receive,
-									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i]})
+									pre: vectorClocks[int(pre.GetTimestamp())][i], post: vectorClocks[int(post.GetTimestamp())][i],
+									mutexe: mut})
 								b1 = true
 								b2 = true
 							}
@@ -236,7 +252,16 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 			case *TraceClose:
 				vcTrace = append(vcTrace, vcn{id: pre.chanId, preTime: pre.timestamp,
 					creation: pre.chanCreation, routine: i, position: pre.position, pre: vectorClocks[int(pre.GetTimestamp())][i],
-					post: vectorClocks[int(pre.GetTimestamp())][i]})
+					post:   vectorClocks[int(pre.GetTimestamp())][i],
+					mutexe: mut})
+			case *TraceLock:
+				mut = append(mut, mutexElem{pre.lockId, pre.read})
+			case *TraceUnlock:
+				for i := len(mut) - 1; i >= 0; i-- {
+					if mut[i].id == pre.lockId {
+						mut = append(mut[:i], mut[i+1:]...)
+					}
+				}
 			}
 		}
 	}
@@ -331,7 +356,7 @@ func findAlternativeCommunication(vcTrace []vcn, concurrent map[infoTime]int, be
 			}
 			uncomp1 := vcUnComparable(elem1.pre, elem2.pre)
 			uncomp4 := vcUnComparable(elem1.post, elem2.post)
-			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4)) ||
+			if (getChanSize(elem1.id) == 0 && (uncomp1 || uncomp4) && notSameMutex(elem1, elem2)) ||
 				(getChanSize(elem1.id) != 0 && before[it1] <= before[it2]+concurrent[it2] && before[it1]+concurrent[it1] >= before[it2]) {
 				collection[it1] = append(collection[it1], infoTime{preTime: elem2.preTime, pos: elem2.position})
 			}
@@ -535,20 +560,18 @@ func checkForPossibleSendToClosed(vcTrace []vcn) (bool, []string) {
 			switch sel := elem.(type) {
 			case *TraceClose:
 				// get vector clocks of pre select
-				var preVc []int
-				var postVc []int
+				var closeVc vcn
 				for _, clock := range vcTrace {
 					if sel.position == clock.position {
-						preVc = clock.pre
-						postVc = clock.post
+						closeVc = clock
 					}
 				}
 
 				// find possible pre vector clocks
 				for _, vc := range vcTrace {
-					uncompPre := vcUnComparable(preVc, vc.pre)
-					uncompPost := vcUnComparable(postVc, vc.post)
-					if vc.id == sel.chanId && vc.send && (uncompPre || uncompPost) {
+					uncompPre := vcUnComparable(closeVc.pre, vc.pre)
+					uncompPost := vcUnComparable(closeVc.post, vc.post)
+					if vc.id == sel.chanId && vc.send && (uncompPre || uncompPost) && notSameMutex(closeVc, vc) {
 						r = true
 						res = append(res, fmt.Sprintf("Possible Send to Closed Channel:\n    Close: %s\n    Send: %s", sel.position, vc.position))
 					}
@@ -580,6 +603,23 @@ func vcUnComparable(vc1, vc2 []int) bool {
 		}
 	}
 	return false
+}
+
+/*
+Check if the two vcn have no common mutex except if both are rLock
+@param elem1 vcn
+@param elem2 vcn
+@return bool: true if they have no common mutex except if both are rLock
+*/
+func notSameMutex(elem1, elem2 vcn) bool {
+	for _, i := range elem1.mutexe {
+		for _, j := range elem2.mutexe {
+			if i.id == j.id && (!i.rw || !j.rw) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 /*
