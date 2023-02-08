@@ -437,6 +437,7 @@ func findImpossibleCommunication(rs map[infoTime][]infoTime, listOfStart []infoT
 			path[start] = end
 			found = true
 			resString += findImpossibleCommunication(rs, listOfStart, path, send, vcTrace)
+			delete(path, start)
 		}
 	}
 
