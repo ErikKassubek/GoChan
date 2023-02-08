@@ -147,8 +147,8 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 				switch t := traceTotal[j].elem.(type) {
 				case *TraceSignal:
 					if t.routine == e.routine {
-						vectorClocks[i+1] = update_reveive(vectorClocks[i], int(e.routine), int(traceTotal[j].routine),
-							vectorClocks[int(t.GetTimestamp())][traceTotal[j].routine])
+						vectorClocks[i+1] = update_receive(vectorClocks[i], int(e.routine), int(traceTotal[j].routine),
+							vectorClocks[int(t.GetTimestamp())][traceTotal[j].routine], true)
 						b = true
 					}
 				}
@@ -162,8 +162,8 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 			} else {
 				for j := i - 1; j >= 0; j-- {
 					if e.senderTimestamp == traceTotal[j].elem.GetTimestamp() {
-						vectorClocks[i+1] = update_reveive(vectorClocks[i], int(elem.routine), int(traceTotal[j].routine),
-							vectorClocks[int(e.senderTimestamp)][traceTotal[j].routine])
+						vectorClocks[i+1] = update_receive(vectorClocks[i], int(elem.routine), int(traceTotal[j].routine),
+							vectorClocks[int(e.senderTimestamp)][traceTotal[j].routine], false)
 						break
 					}
 
@@ -265,7 +265,6 @@ func buildVectorClockChan() ([]vcn, map[infoTime]int, map[infoTime]int) {
 			}
 		}
 	}
-
 	// calculate first and second values as well as the number of
 	// sends or receives concurrent an operation on a buffered channel
 	concurrent := make(map[infoTime]int)
@@ -676,9 +675,10 @@ Function to create a new vector clock stack after a receive statement
 @param routineRec int: routine of receiver
 @param routineSend int: routine of sender
 @param vectorClockSender []int: vector clock of the sender at time of sending
+@param wait bool: true if wait
 @ret [][] int: new vector clock stack
 */
-func update_reveive(vectorClock [][]int, routineRec int, routineSend int, vectorClockSender []int) [][]int {
+func update_receive(vectorClock [][]int, routineRec int, routineSend int, vectorClockSender []int, wait bool) [][]int {
 	c := make([][]int, len(vectorClock))
 	for i := range vectorClock {
 		c[i] = make([]int, len(vectorClock[i]))
@@ -694,6 +694,9 @@ func update_reveive(vectorClock [][]int, routineRec int, routineSend int, vector
 	for l := 0; l < len(c[routineRec]); l++ {
 		if c[routineRec][l] < vectorClockSender[l] {
 			c[routineRec][l] = vectorClockSender[l]
+			if !wait && l == routineSend {
+				c[routineRec][l]++
+			}
 		}
 	}
 
