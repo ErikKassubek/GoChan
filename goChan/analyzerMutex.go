@@ -363,7 +363,7 @@ func getDeadlockMessage(stack *depStack) string {
 					hs += "    " + h_t.position + "\n"
 				}
 			}
-			message += fmt.Sprintf("Lock: %s\n  Hs:\n%s", l.position, hs)
+			message += fmt.Sprintf("Lock: %s\n%s", l.position, hs)
 		}
 	}
 	return message
