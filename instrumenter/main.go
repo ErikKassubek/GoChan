@@ -43,20 +43,18 @@ const SELECT_WAITING_TIME string = "2 * time.Second"
 var path_separator string = "/"
 
 var in string
-var out string
+var out string = "output"
 var execName string
 
 // read command line arguments
 func command_line_args() error {
 	flag.StringVar(&in, "in", "", "input path")
-	flag.StringVar(&out, "out", "."+path_separator+"output"+path_separator, "output path")
-	flag.StringVar(&execName, "exec", "main", "name of created executable")
 
 	flag.Parse()
 
 	if in == "" {
 		return errors.New("flag -in missing or incorrect.\n" +
-			"usage: go run main.go -in=[pathToFiles] <-out=[path_to_folder]>)")
+			"usage: go run main.go -in=[pathToFiles]")
 	}
 
 	// add trailing path separator to in
@@ -70,7 +68,7 @@ func command_line_args() error {
 	}
 
 	if in == out {
-		return errors.New("in cannot be equal to out")
+		return errors.New("in cannot be 'output'")
 	}
 
 	return nil
@@ -94,7 +92,7 @@ func main() {
 	}
 
 	// instrument all files in file_names
-	err = instrument_files(file_name)
+	execName, err = instrument_files(file_name)
 	if err != nil {
 		panic(err)
 	}

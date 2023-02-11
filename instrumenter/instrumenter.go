@@ -36,51 +36,62 @@ import (
 	"go/token"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 
 /*
 Function to perform instrumentation of all list of files
 @param file_paths []string: list of file names to instrument
+@return string: name of exec
 @return error: error or nil
 */
-func instrument_files(file_paths []string) error {
+func instrument_files(file_paths []string) (string, error) {
+	execName = ""
 	for _, file := range file_paths {
-		err := instrument_file(file)
+		en, err := instrument_file(file)
+		if en != "" {
+			execName = en
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to instrument file %s.\n", file)
-			return err
+			return execName, err
 		}
 	}
-	return nil
+	return execName, nil
 }
 
 /*
 Function to instrument a given file.
 @param file_path string: path to the file
+@return string: name of exec
 @return error: error or nil
 */
-func instrument_file(file_path string) error {
+func instrument_file(file_path string) (string, error) {
 	// create output file
 	output_file, err := os.Create(out + file_path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create output file %s.\n", out+file_path)
-		return err
+		return "", err
 	}
 	defer output_file.Close()
 
 	// copy mod and sum files
 	if file_path[len(file_path)-3:] != ".go" {
+		execName := ""
 		content, err := ioutil.ReadFile(file_path)
+		if file_path[len(file_path)-4:] == ".mod" {
+			execName = strings.Split(strings.Split(string(content), "\n")[0], " ")[1]
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read file %s.\n", file_path)
-			return err
+			return "", err
 		}
 		_, err = output_file.Write(content)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to write to output file %s.\n", out+file_path)
-			return err
+			return "", err
 		}
-		return nil
+		return execName, nil
 	}
 
 	// instrument go files
@@ -90,7 +101,7 @@ func instrument_file(file_path string) error {
 		fmt.Fprintf(os.Stderr, "Could not instrument %s\n", in+file_path)
 	}
 
-	return nil
+	return "", nil
 }
 
 /*

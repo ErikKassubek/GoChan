@@ -95,8 +95,7 @@ func main() {
 				failed = true
 				fmt.Println(fmt.Sprint(err.Error()))
 				if strings.HasPrefix(fmt.Sprint(err), "fork/exec") || strings.HasSuffix(fmt.Sprint(err), "no such file or directory") {
-					fmt.Println("\nProgram could not be started\n\nPossible cause:\n   - The EXEC value was not set correctly during the instrumentation.\n     It should be the name " +
-						"of the executable created when compiling the original code.\n   - The Program rased an error during compile time.\n\n")
+					fmt.Println("\nProgram could not be started\n\nPossible cause:\n   - The Program rased an error during compile time.\n\n")
 					fmt.Println("Abort Analysis")
 					os.Exit(1)
 				}
