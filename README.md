@@ -1,9 +1,5 @@
 # GoChan: Dynamic Analysis of Message Passing Go Programms
 
-```diff 
-- This code is still work in progress and may not work or result in incorrect behavior!
-```
-
 ## What
 GoChan implements a dynamic detector for concurrency-bugs in Go.
 
@@ -82,7 +78,7 @@ func main() {
 ```
 In the "project" folder we can now run 
 ```shell
-$ make IN="./show/" EXEC="showProg"
+$ make IN="./show/"
 ```
 This will create an ./output folder in "project" containing 
 ```
@@ -92,7 +88,7 @@ main
 ```
 The folder "main" contains the instrumented and compiled project. 
 Depending on the project structure, "./output" can also contain other, empty
-folders. They can be ignored. We can now run the "main" executable.
+folders. They can be ignored. The make will then run the program.
 From this we get the following output
 ```
 Determine switch execution order
