@@ -13,9 +13,8 @@ Written elaboration at: https://github.com/ErikKassubek/Bachelorarbeit
 To use the detector you need to clone or download this repository.
 To instrument a program in \<input folder>, run 
 ```
-make IN="<input folder>" EXEC="<executable name>"
+make IN="<input folder>"
 ```
-\<executable name></executable> is the name of the executable produced by the code.
 This will create a folder ./output. In this folder, there will be a folder 
 containing the instrumented project. It will also contain a new main.go and 
 a compiled main file.
