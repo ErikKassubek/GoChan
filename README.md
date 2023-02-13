@@ -137,3 +137,4 @@ binary must be directly runnable.
 - Please be aware, that using external library functions which have Mutexe or 
 channels as parameter or return values can lead to errors during the compilation.
 - [GoImports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports) must be installed
+- Only tested under Linux
